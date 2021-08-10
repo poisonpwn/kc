@@ -4,15 +4,19 @@ import sys
 
 class PassInput:
     def get_prompt_password_hook(pinentry_instance, prompt):
-        pinentry_instance.description = prompt
-        pinentry_instance.prompt = ">"
+        pinentry_instance.prompt = prompt
 
-        def __prompt_password():
+        def __prompt_password(prompt=None, reset_prompt=True):
+            old_prompt = pinentry_instance.prompt
+            if prompt is not None:
+                pinentry_instance.prompt = prompt
             try:
-                return pinentry_instance.get_pin()
+                passwd = pinentry_instance.get_pin()
             except pynentry.PinEntryCancelled:
-                print("operation cancelled! Aborting!")
+                print("operation cancelled! Abort!")
                 sys.exit()
+            pinentry_instance.prompt = old_prompt
+            return passwd
 
         return __prompt_password
 
