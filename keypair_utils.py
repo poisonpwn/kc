@@ -1,5 +1,5 @@
 from pathlib import Path
-from crypto import Crypto
+from crypto import SymmetricCrypto
 from pass_input import PassInput
 from nacl.public import PrivateKey
 from nacl.exceptions import CryptoError
@@ -32,6 +32,10 @@ class MasterKeyPair:
         )
 
     def generate(self, passwd=None):
+        """
+        generates an NaCL keypair and written to disk at self.keypair_dir location
+        the secret key is symmetrically encrypted with master password provided by the user
+        """
         # check if a secret already exists in the keystore directory
         if self.secret_key_file.exists():
             prompt = f"file {self.secret_key_file.name} ALREADY Exists in {self.keypair_dir}! Overwrite? (y/N): "
@@ -45,9 +49,7 @@ class MasterKeyPair:
 
         # get master password from user
         passwd = (
-            PassInput.prompt_password_and_confirm(
-                "Enter a master password. Choose Wisely!",
-            )
+            PassInput.prompt_password_and_confirm("Enter master Password: ")
             if passwd is None
             else passwd
         )
@@ -56,7 +58,9 @@ class MasterKeyPair:
         secret_key = PrivateKey.generate()
         public_key = secret_key.public_key
 
-        encrypted_secret_key, salt = Crypto.encrypt(secret_key.encode(), passwd)
+        encrypted_secret_key, salt = SymmetricCrypto.encrypt(
+            secret_key.encode(), passwd
+        )
 
         # if keystore directory doesn't exist, create it.
         if not self.keypair_dir.exists():
@@ -70,20 +74,25 @@ class MasterKeyPair:
             public_key_file.write(public_key.encode().hex())
 
     def get_secret(self, passwd=None):
+        """
+        decrypt and return the secret key from disk using provided password
+        """
         with open(self.secret_key_file, "r") as secret_key_file:
             encrypted_secret_key, _, salt = secret_key_file.read().partition("|")
 
         if passwd is not None:
-            return Crypto.decrypt(encrypted_secret_key, passwd, salt)
+            return bytes.fromhex(
+                SymmetricCrypto.decrypt(encrypted_secret_key, passwd, salt)
+            )
 
-        def is_right_password(inputted_passwd, pyinput_instance, attempts_left):
+        def check_if_right_passwd(inputted_passwd, pyentry_instance, attempts_left):
             try:
-                secret = Crypto.decrypt(
+                secret = SymmetricCrypto.decrypt(
                     bytes.fromhex(encrypted_secret_key), inputted_passwd, salt
                 )
-                return secret
+                return bytes.fromhex(secret)
             except CryptoError:
-                pyinput_instance.description = (
+                pyentry_instance.description = (
                     f"Wrong Password! Try Again {attempts_left} tries left"
                 )
                 return False
@@ -93,19 +102,25 @@ class MasterKeyPair:
             exit()
 
         return PassInput.prompt_password_until(
-            "Enter master password: ", is_right_password, ran_out_of_attempts
+            "Enter master password: ", check_if_right_passwd, ran_out_of_attempts
         )
 
     def change_passwd(self, new_passwd=None):
+        """
+        change the master password using the secret key is encrypted on disk
+        """
         secret_key = self.get_secret()
         new_passwd = (
-            PassInput.prompt_password_and_confirm("Enter New Password")
+            PassInput.prompt_password_and_confirm("Enter new master password: ")
             if new_passwd is None
             else new_passwd
         )
         with open(self.secret_key_file, "w") as secret_key_file:
-            secret_key_file.write("|".join(Crypto.encrypt(secret_key, new_passwd)))
+            secret_key = secret_key_file.write(
+                "|".join(SymmetricCrypto.encrypt(secret_key, new_passwd))
+            )
 
 
-key_pair = MasterKeyPair()
-print(key_pair.get_secret())
+if __name__ == "__main__":
+    key_pair = MasterKeyPair()
+    key_pair.change_passwd()
