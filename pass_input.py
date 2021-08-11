@@ -21,6 +21,11 @@ class PassInput:
         return __prompt_password
 
     def prompt_password_and_confirm(prompt):
+        """
+        prompt password and ask again to confirm password
+        if the two entries don't match
+        the process is repeated till a match is reached
+        """
         with pynentry.PynEntry() as p:
             prompt_password = PassInput.get_prompt_password_hook(p, prompt)
             while (passwd := prompt_password()) != prompt_password(

@@ -18,11 +18,16 @@ class MasterKeyPair:
         skey_filename=None,
         pubkey_filename=None,
     ):
+        self.keypair_dir = keypair_dir
         if keypair_dir is None:
             env_key_dir = os.environ.get(MasterKeyPair.KEYPAIR_DIR_ENV_VAR)
             self.keypair_dir = (
-                Path.home() / ".keys" if env_key_dir is None else env_key_dir
-            )  # directory where keypair is contained
+                Path.home() / ".keys" if env_key_dir is None else Path(env_key_dir)
+            )  # directory where keypair is contained:
+
+        # if keystore directory doesn't exist, create it.
+        if not self.keypair_dir.exists():
+            os.makedirs(self.keypair_dir)
 
         self.public_key_file = self.keypair_dir / (
             "nacl_pubkey.pub" if pubkey_filename is None else pubkey_filename
@@ -62,10 +67,6 @@ class MasterKeyPair:
             secret_key.encode(), passwd
         )
 
-        # if keystore directory doesn't exist, create it.
-        if not self.keypair_dir.exists():
-            os.makedirs(self.keypair_dir)
-
         # write key pair into their files in the key pair directory
         with open(self.secret_key_file, "w") as secret_key_file:
             # key derivation salt is appended to the user's secret key after the '|' symbol
@@ -104,6 +105,10 @@ class MasterKeyPair:
         return PassInput.prompt_password_until(
             "Enter master password: ", check_if_right_passwd, ran_out_of_attempts
         )
+
+    def get_public_key(self):
+        with open(self.public_key_file) as public_key_file:
+            return bytes.fromhex(public_key_file.read())
 
     def change_passwd(self, new_passwd=None):
         """
