@@ -1,44 +1,33 @@
-from nacl.secret import SecretBox
-from nacl.utils import random
+from typing import Optional
 from pyargon2 import hash
+from nacl.secret import SecretBox
+from nacl.encoding import RawEncoder
+from nacl.utils import random
 
 
-class SymmetricCrypto:
+class KeySecretBox(SecretBox):
+    """
+    creates a SecretBox from a key derived from
+    the password and salt passed in,
+    using the argon2 key derivation function
+    """
+
     KDF_SALT_BYTES = 32
 
-    def gen_secret_box_from_pass(passwd, salt=None):
-        """
-        performs a key derivation from given password
-        if salt is not specified a random salt is generated and used
-        to create an NaCl SecretBox instance with the credentials
-        which is returned along with the salt used
-        """
-        # perform key derivation from password passed in by user
+    def __init__(self, passwd: str, salt: Optional[str] = None, encoding=RawEncoder):
         if salt is None:
-            salt = random(SymmetricCrypto.KDF_SALT_BYTES).hex()
+            salt = random(KeySecretBox.KDF_SALT_BYTES).hex()
+        self.salt: str = salt
         derived_symmetric_key = hash(
             passwd,
-            salt,
+            self.salt,
             hash_len=SecretBox.KEY_SIZE,
             encoding="raw",
         )
+        super().__init__(derived_symmetric_key, encoding)
 
-        # encrypt the secret key with password passed in by user
-        return SecretBox(derived_symmetric_key), salt
 
-    def encrypt(message, passwd, salt=None):
-        """
-        encrypt with NaCl secretbox
-        if salt is not provided a random salt is generated
-        returns a tuple of the hex of the encrypted message and the salt used
-        """
-        secret_box, salt = SymmetricCrypto.gen_secret_box_from_pass(passwd, salt)
-        return secret_box.encrypt(message).hex(), salt
-
-    def decrypt(cipher, passwd, salt):
-        """
-        decrypts cipher text with SecretBox
-        returns hex of decryption
-        """
-        secret_box, _ = SymmetricCrypto.gen_secret_box_from_pass(passwd, salt)
-        return secret_box.decrypt(cipher).hex()
+if __name__ == "__main__":
+    box = KeySecretBox("hello, world")
+    print(box.encrypt(b"this is not a good password").hex())
+    print(box.salt)
