@@ -1,61 +1,108 @@
-import pynentry
 import sys
+from pynentry import PynEntry, PinEntryCancelled, show_message
+from typing import Callable, Optional, Any
+from class_utils import PostInit
 
 
-class PassInput:
-    def get_prompt_password_hook(pinentry_instance, prompt):
-        pinentry_instance.prompt = prompt
+class AskUser(metaclass=PostInit):
+    def __init__(self, prompt):
+        self.prompt = prompt
 
-        def __prompt_password(prompt=None, reset_prompt=True):
-            old_prompt = pinentry_instance.prompt
-            if prompt is not None:
-                pinentry_instance.prompt = prompt
+    def prompt(self):
+        with PynEntry() as p:
+            prompt_hook = AskUser.use_prompt(p, self.prompt)
+            return prompt_hook()
+
+    __post_init__ = prompt
+
+    @staticmethod
+    def use_prompt(pynentry_instance: PynEntry, prompt: str) -> Callable[[str], str]:
+        """
+        returns a closure which prompts user for input with the
+        specified prompt using the current `pynentry_instance`
+
+        it is also possible to pass a temporary prompt to the closure when calling it,
+        which is then reset automatically after the closure runs
+        """
+        pynentry_instance.prompt = prompt
+
+        def _prompt_user(temp_prompt: Optional[str] = None) -> str:
+            """
+            prompts user for input and, if it is cancelled, aborts program
+
+            if a prompt is specified as an argument temporarily sets that prompt
+            before resetting to old one this is done as to not pollute the PynEntry instance
+            """
+            # this is here so that if there was an old prompt before this
+            # we can use the old prompt and then revert to the old one later
+            old_prompt = pynentry_instance.prompt
+            if temp_prompt is not None:
+                pynentry_instance.prompt = temp_prompt
             try:
-                passwd = pinentry_instance.get_pin()
-            except pynentry.PinEntryCancelled:
-                print("operation cancelled! Abort!")
+                passwd = pynentry_instance.get_pin()
+            except PinEntryCancelled:
+                sys.stderr.write("operation cancelled! Abort!")
                 sys.exit()
-            pinentry_instance.prompt = old_prompt
+            pynentry_instance.prompt = old_prompt
             return passwd
 
-        return __prompt_password
+        return _prompt_user
 
-    def prompt_password_and_confirm(prompt):
+    @staticmethod
+    def and_confirm(prompt: str, confirm_prompt="Confirm Password: ") -> str:
         """
-        prompt password and ask again to confirm password
-        if the two entries don't match
-        the process is repeated till a match is reached
+        prompt input from user and ask to input it, again to confirm the input
+        if the two instances don't match, the process is repeated till
+        a match is obtained
         """
-        with pynentry.PynEntry() as p:
-            prompt_password = PassInput.get_prompt_password_hook(p, prompt)
-            while (passwd := prompt_password()) != prompt_password(
-                "Confirm Password: "
-            ):
-                pynentry.show_message("Passwords don't' match! try again! ")
+        with PynEntry() as p:
+            prompt_password = AskUser.use_prompt(p, prompt)
+            while (passwd := prompt_password()) != prompt_password(confirm_prompt):
+                show_message("Passwords don't' match! try again! ")
 
         return passwd
 
-    def prompt_password_until(
-        prompt, breaking_closure, no_break_closure, attempt_count=3
+    @staticmethod
+    def until(
+        prompt: str,
+        breaking_closure: Callable[[str, PynEntry, int], Any],
+        no_break_closure: Callable[[], Any],
+        attempt_count: int = 3,
     ):
         """
-        prompts password from user till either the breaking closure returns True
-        or till the attempts run out, if that happens the no_break_closure is run
+        prompts user from user till either the `breaking_closure`
+        returns anything other than False (doesn't have to be a boolean)
+        or till the attempts run out, if that happens
+        the `no_break_closure` is called without arguments and
+        it's return value is returned
 
-        the breaking Closure will have the current inputted password as first argument
-        the PyEntry instance passed in as second argument
-        and the and the number of attempts left passed in as third argument
+        the breaking closure's function signature should look like this
+        ```
+        def breaking_closure(
+            current_inputted_password: str,
+            pyentry_instance: pynentry.PynEntry,
+            attempts_left: int,
+        ) -> Any:
+        ```
 
-        if the returned value of the breaking closure is not boolean then it returns that out of the function
+        the breaking_closure can return any type, IF the type returned is a boolean,
+        then if it is True, the `current_inputted_password` is returned out of
+        the function, else the return value of the breaking_closure is returned out
+        the function instead
         """
-        with pynentry.PynEntry() as p:
-            prompt_password = PassInput.get_prompt_password_hook(p, prompt)
+        with PynEntry() as p:
+            prompt_user = AskUser.use_prompt(p, prompt)
             for i in range(1, attempt_count + 1):
-                password = prompt_password()
-                closure_result = breaking_closure(password, p, attempt_count - i)
+                inputted_value = prompt_user()
+                closure_result = breaking_closure(inputted_value, p, attempt_count - i)
                 if not isinstance(closure_result, bool):
                     return closure_result
                 if closure_result:
-                    return password
+                    return inputted_value
             else:
-                no_break_closure()
+                # ran out of attempts, proceed with failing case
+                return no_break_closure()
+
+
+if __name__ == "__main__":
+    print(AskUser("Enter something: "))
