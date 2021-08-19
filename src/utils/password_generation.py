@@ -1,8 +1,8 @@
-from random import randint, choices
+from random import randint, randrange, choices
 from pathlib import Path
-from string import ascii_letters, digits
 from linecache import getline
 from sys import stderr
+from string import ascii_letters, ascii_lowercase, digits
 from typing import Union, Optional
 
 
@@ -73,11 +73,40 @@ class PassGen:
     xkcd = staticmethod(xkcd)
 
     @staticmethod
-    def random(size: int = 20, with_numbers: bool = False) -> str:
-        domain = ascii_letters
-        if with_numbers:
-            domain = domain + digits
-        return "".join(choices(domain, k=size))
+    def random_chars(
+        size: int = 20,
+        digit_count: int = 3,
+        include_uppercase: bool = True,
+        special_char_count: int = 3,
+    ) -> str:
+        """
+        return a passphrase which consists of random characters
+
+        :param size:               the length of the password
+        :param digit_count:        no of digits to include in the password
+        :param include_upperase:   whether to include uppercase letters in passwor
+        :param special_char_count: no of special characters to include in the password
+        """
+
+        if (digit_count + special_char_count) > size:
+            stderr.write(
+                "no of numbers and special charectars"
+                "can't be more than length of password itself!\n"
+            )
+            exit()
+
+        letter_options = ascii_letters if include_uppercase else ascii_lowercase
+        passwd_char_list = choices(
+            letter_options, k=size - (digit_count + special_char_count)
+        )
+        numbers_list = choices(digits, k=digit_count)
+        special_char_list = choices(r"&$%#@!*=+-\,.;:/?", k=special_char_count)
+
+        for char in numbers_list + special_char_list:
+            index = randrange(len(passwd_char_list))
+            passwd_char_list.insert(index, char)
+
+        return "".join(passwd_char_list)
 
 
 if __name__ == "__main__":
