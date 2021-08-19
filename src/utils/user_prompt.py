@@ -41,7 +41,7 @@ class AskUser(metaclass=PostInit):
             try:
                 passwd = pynentry_instance.get_pin()
             except PinEntryCancelled:
-                sys.stderr.write("operation cancelled! Abort!")
+                sys.stderr.write("operation cancelled! Abort!\n")
                 sys.exit()
             pynentry_instance.prompt = old_prompt
             return passwd
