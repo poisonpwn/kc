@@ -3,7 +3,7 @@ from pathlib import Path
 from string import ascii_letters, digits
 from linecache import getline
 from sys import stderr
-from typing import Union
+from typing import Union, Optional
 
 
 class PassGen:
@@ -13,22 +13,39 @@ class PassGen:
     # static method can't be used normally
     # here because this function is monkey patched
     def xkcd(
-        *,
         no_of_words: int = 5,
-        include_size: bool = True,
         delim: str = "-",
-        word_len_range: Union[range, int] = range(4, 10),  # this can also be an int
+        include_size: bool = True,
+        service_name: Optional[str] = None,
+        should_capitalize_words: bool = False,
+        word_len_range: Union[range, int] = range(4, 10),
     ) -> str:
+        """
+        returns an xkcd style passphrase
+        like in https://xkcd.com/936/
+
+        :param no_of_words: no of words to in the password
+        :param include_size: whether to append the length of the password
+        :param delim: the delimeter to join the words in the password
+        :param word_len_range: the length of the word should be within this range
+        to be included, or pass an int for word to be exact length
+        :param service_name: use the service name as the first word
+        """
         word_list = []
-        word_len_sum = 0
+        if service_name is not None:
+            word_list.append(service_name)
 
         if isinstance(word_len_range, int):
-            word_pass_predicate = lambda word_len: word_len == word_len_range
+            word_pass_predicate = word_len_range.__eq__
         elif isinstance(word_len_range, range):
-            word_pass_predicate = lambda word_len: word_len in word_len_range
+            word_pass_predicate = word_len_range.__contains__
         else:
-            stderr.write("invalid word len qualifier!")
+            raise TypeError(
+                "Invalid Type for word_len_range"
+                f"expected range or int, got {type(word_len_range)}"
+            )
 
+        word_len_sum = 0
         while len(word_list) < no_of_words:
             word = getline(
                 str(PassGen.xkcd.WORDLIST_FILE),
@@ -38,9 +55,13 @@ class PassGen:
                 word_len_sum += word_len
                 word_list.append(word)
 
+        if should_capitalize_words:
+            word_list = [word.capitalize() for word in word_list]
+
         if include_size:
             word_list.append(
-                # take into account delimeters when doing len calulation
+                # add `no_of_words - 1` to take delimeters into account
+                # when doing len calulation
                 str(word_len_sum + no_of_words - 1)
                 # * NOTE: the last delimeter before the length number is not counted in length
             )
