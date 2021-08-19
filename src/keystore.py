@@ -1,7 +1,41 @@
 import os
 from pathlib import Path
 from typing import Final, Optional, Callable
-from class_utils import PostInit
+from utils.class_utils import PostInit
+
+
+class KeyStore:
+    KEY_STORE_DIR_ENV_VAR = "KEYSTORE_DIR"
+    KEY_FILE_EXT = ".gpg"
+    DEFAULT_KEY_STORE_PATH: Final[Path] = Path.home() / ".password-store"
+
+    def __init__(self, key_store_dir: Optional[Path] = None):
+        self.key_store_dir = key_store_dir
+        if key_store_dir is None:
+            # keystore was None so check in environment
+            env_keystore_dir = os.environ.get(KeyStore.KEY_STORE_DIR_ENV_VAR)
+            self.key_store_dir = (
+                KeyStore.DEFAULT_KEY_STORE_PATH
+                if env_keystore_dir is None
+                # keystore was also not specified in environment
+                else Path(env_keystore_dir)
+            )
+        if not self.key_store_dir.exists():
+            os.makedirs(self.key_store_dir)
+
+    def __str__(self):
+        """
+        returns whole directory tree containing all the keyfiles and parent dirs
+        at the self.key_store_dir location, only the folders with atleast
+        one valid keyfile are included in tree
+        """
+        tree_filter_predicate = (
+            lambda node: node.is_file() and node.suffix == KeyStore.KEY_FILE_EXT
+        )
+        tree = Tree(self.key_store_dir, tree_filter_predicate)
+        if tree is None:
+            return f"no keys in {self.key_store_dir.absolute()}"
+        return tree
 
 
 class Tree(metaclass=PostInit):
@@ -111,40 +145,6 @@ class Tree(metaclass=PostInit):
                 [f"\n  {self.root_path}", *["".join(["\t", *i]) for i in tree]]
             )
         )
-
-
-class KeyStore:
-    KEY_STORE_DIR_ENV_VAR = "KEYSTORE_DIR"
-    KEY_FILE_EXT = ".gpg"
-    DEFAULT_KEY_STORE_PATH: Final[Path] = Path.home() / ".password-store"
-
-    def __init__(self, key_store_dir: Optional[Path] = None):
-        self.key_store_dir = key_store_dir
-        if key_store_dir is None:
-            # keystore was None so check in environment
-            env_keystore_dir = os.environ.get(KeyStore.KEY_STORE_DIR_ENV_VAR)
-            self.key_store_dir = (
-                KeyStore.DEFAULT_KEY_STORE_PATH
-                if env_keystore_dir is None
-                # keystore was also not specified in environment
-                else Path(env_keystore_dir)
-            )
-        if not self.key_store_dir.exists():
-            os.makedirs(self.key_store_dir)
-
-    def __str__(self):
-        """
-        returns whole directory tree containing all the keyfiles and parent dirs
-        at the self.key_store_dir location, only the folders with atleast
-        one valid keyfile are included in tree
-        """
-        tree_filter_predicate = (
-            lambda node: node.is_file() and node.suffix == KeyStore.KEY_FILE_EXT
-        )
-        tree = Tree(self.key_store_dir, tree_filter_predicate)
-        if tree is None:
-            return f"no keys in {self.key_store_dir.absolute()}"
-        return tree
 
 
 if __name__ == "__main__":
