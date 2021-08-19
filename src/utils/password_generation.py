@@ -8,7 +8,8 @@ from typing import Union, Optional
 
 class PassGen:
     def __init__(self):
-        print(PassGen.xkcd())
+        # TODO: implement dispatch to password generators
+        pass
 
     # static method can't be used normally
     # here because this function is monkey patched
@@ -61,7 +62,7 @@ class PassGen:
         if include_size:
             word_list.append(
                 # add `no_of_words - 1` to take delimeters into account
-                # when doing len calulation
+                # when calculating the len of password to append later
                 str(word_len_sum + no_of_words - 1)
                 # * NOTE: the last delimeter before the length number is not counted in length
             )
@@ -96,18 +97,24 @@ class PassGen:
             exit()
 
         letter_options = ascii_letters if include_uppercase else ascii_lowercase
+
+        # vvvvv currently only has letters and nothing else
         passwd_char_list = choices(
-            letter_options, k=size - (digit_count + special_char_count)
+            letter_options,
+            # no of letters is total size minus the no of digits and special chars
+            k=size - (digit_count + special_char_count),
         )
         numbers_list = choices(digits, k=digit_count)
         special_char_list = choices(r"&$%#@!*=+-\,.;:/?", k=special_char_count)
 
+        # insert the digits and special chars randomly throughout the password
         for char in numbers_list + special_char_list:
-            index = randrange(len(passwd_char_list))
-            passwd_char_list.insert(index, char)
+            random_index = randrange(len(passwd_char_list))
+            passwd_char_list.insert(random_index, char)
 
         return "".join(passwd_char_list)
 
 
 if __name__ == "__main__":
-    PassGen()
+    print(PassGen.xkcd())
+    print(PassGen.random_chars())
