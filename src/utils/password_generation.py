@@ -21,16 +21,23 @@ class PassGen:
         should_capitalize_words: bool = False,
         word_len_range: Union[range, int] = range(4, 10),
     ) -> str:
-        """
-        returns an xkcd style passphrase
-        like in https://xkcd.com/936/
+        """generates an xkcd style passphrase, like in
+        https://xkcd.com/936/
 
-        :param no_of_words: no of words to in the password
-        :param include_size: whether to append the length of the password
-        :param delim: the delimeter to join the words in the password
-        :param word_len_range: the length of the word should be within this range
-        to be included, or pass an int for word to be exact length
-        :param service_name: use the service name as the first word
+        Args:
+            no_of_words (int, optional): the number of words the password should contain. Defaults to 5.
+
+            delim (str, optional): the delimeter to seperate each word with. Defaults to "-".
+
+            include_size (bool, optional): whether to append the total size of the password to it
+              including delimeters, except the delimeter seperating the size itself. Defaults to True.
+
+            service_name (Optional[str], optional): if not None, service name will be used as the
+              first word of the password. Defaults to None.
+
+            should_capitalize_words (bool, optional): if True, every word in password will be capitalized. Defaults to False.
+
+            word_len_range (Union[range, int], optional): [description]. Defaults to range(4, 10).
         """
         word_list = []
         if service_name is not None:
@@ -80,15 +87,18 @@ class PassGen:
         include_uppercase: bool = True,
         special_char_count: int = 3,
     ) -> str:
-        """
-        return a passphrase which consists of random characters
+        """generate a password consisitng of a random string of characters with
+        with the specified parameters
 
-        :param size:               the length of the password
-        :param digit_count:        no of digits to include in the password
-        :param include_upperase:   whether to include uppercase letters in passwor
-        :param special_char_count: no of special characters to include in the password
-        """
+        Args:
+            size (int, optional): the length of the password. Defaults to 20.
 
+            digit_count (int, optional): no of digits to include in the password. Defaults to 3.
+
+            include_uppercase (bool, optional): whether to include the uppercase alphabet. Defaults to True.
+
+            special_char_count (int, optional): no of special charectars to include in the password. Defaults to 3.
+        """
         if (digit_count + special_char_count) > size:
             stderr.write(
                 "no of numbers and special charectars"
