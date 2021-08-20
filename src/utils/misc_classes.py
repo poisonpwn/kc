@@ -6,15 +6,18 @@ class PostInit(type):
     """
     enables the use of a class as a psuedofunction of sorts
 
-    it overrides the __call__ of `type` class to actuall call an internel function
-    of the class itself
+    it overrides the `__call__` of `type()` to actuall call an internal __post_init__
+    function of the class itself
 
     i.e when the actual class constructor is called
 
+    ```
     value = Something() # class which has metaclass PostInit
+    #^^^^ is not an instance of the Something() class
+    ```
 
-    a class instance is NOT created, instance it returns the output of the __post_init__
-    of the Something class
+    a class instance is NOT created, instead it returns the output of `__post_init__()`
+    of the `Something` class
     """
 
     def __call__(cls, *args, **kwargs):
