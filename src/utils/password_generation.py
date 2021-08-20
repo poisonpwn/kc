@@ -39,6 +39,9 @@ class PassGen:
 
             word_len_range (Union[range, int], optional): [description]. Defaults to range(4, 10).
         """
+        if no_of_words < 0:
+            raise ValueError("no of words in password has to be a positive number!")
+
         word_list = []
         if service_name is not None:
             word_list.append(service_name)
@@ -75,9 +78,9 @@ class PassGen:
             )
         return delim.join(word_list)
 
-    xkcd.WORDLIST_DIR = Path(__file__).parents[2]
-    xkcd.WORDLIST_FILE = (xkcd.WORDLIST_DIR / "wordlist.txt").absolute()
-    xkcd.LINE_RANGE = (4, 7700)
+    xkcd.WORDLIST_DIR = Path(__file__).parents[2].absolute()
+    xkcd.WORDLIST_FILE = xkcd.WORDLIST_DIR / "wordlist.txt"
+    xkcd.LINE_RANGE = (4, 7700)  # only words between these line numbers are chosen
     xkcd = staticmethod(xkcd)
 
     @staticmethod
@@ -99,6 +102,9 @@ class PassGen:
 
             special_char_count (int, optional): no of special charectars to include in the password. Defaults to 3.
         """
+        if size < 1:
+            raise ValueError("size of password has to be a positive number!")
+
         if (digit_count + special_char_count) > size:
             stderr.write(
                 "no of numbers and special charectars"
