@@ -1,7 +1,7 @@
 import sys
 from pynentry import PynEntry, PinEntryCancelled, show_message
 from typing import Callable, Optional, Any
-from class_utils import PostInit
+from misc_classes import PostInit
 
 
 class AskUser(metaclass=PostInit):
@@ -71,19 +71,9 @@ class AskUser(metaclass=PostInit):
     ):
         """
         prompts user from user till either the `breaking_closure`
-        returns anything other than False (doesn't have to be a boolean)
-        or till the attempts run out, if that happens
-        the `no_break_closure` is called without arguments and
+        returns anything other than False or till the attempts run out,
+        if that happens the `no_break_closure` is called and
         it's return value is returned
-
-        the breaking closure's function signature should look like this
-        ```
-        def breaking_closure(
-            current_inputted_password: str,
-            pyentry_instance: pynentry.PynEntry,
-            attempts_left: int,
-        ) -> Any:
-        ```
 
         the breaking_closure can return any type, IF the type returned is a boolean,
         then if it is True, the `current_inputted_password` is returned out of
