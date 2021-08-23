@@ -1,17 +1,26 @@
 import sys
 from pynentry import PynEntry, PinEntryCancelled, show_message
 from typing import Callable, Optional, Any
-from misc_classes import PostInit
+from .misc_classes import PostInit
 
 
 class AskUser(metaclass=PostInit):
-    def __init__(self, prompt):
-        self.prompt = prompt
+    def __init__(
+        self, prompt, allow_empty=False, empty_prompt="Password Can't be Empty"
+    ):
+        self.prompt_message = prompt
+        self.empty_prompt_message = empty_prompt
+        self.allow_empty = allow_empty
 
     def prompt(self):
         with PynEntry() as p:
-            prompt_hook = AskUser.use_prompt(p, self.prompt)
-            return prompt_hook()
+            prompt_hook = AskUser.use_prompt(p, self.prompt_message)
+            while True:
+                input_str = prompt_hook()
+                if input_str == "" and not self.allow_empty:
+                    p.description = self.empty_prompt_message
+                    continue
+                return input_str
 
     __post_init__ = prompt
 
@@ -49,7 +58,9 @@ class AskUser(metaclass=PostInit):
         return _prompt_user
 
     @staticmethod
-    def and_confirm(prompt: str, confirm_prompt="Confirm Password: ") -> str:
+    def and_confirm(
+        prompt: str, confirm_prompt="Confirm Password: ", allow_empty: bool = False
+    ) -> str:
         """
         prompt input from user and ask to input it, again to confirm the input
         if the two instances don't match, the process is repeated till
@@ -57,10 +68,16 @@ class AskUser(metaclass=PostInit):
         """
         with PynEntry() as p:
             prompt_password = AskUser.use_prompt(p, prompt)
-            while (passwd := prompt_password()) != prompt_password(confirm_prompt):
-                show_message("Passwords don't' match! try again! ")
+            while True:
+                passwd = prompt_password()
+                if not passwd and not allow_empty:
+                    show_message("Password can't be empty! Try Again")
+                    continue
 
-        return passwd
+                confirm_passwd = prompt_password(confirm_prompt)
+                if passwd == confirm_passwd:
+                    return passwd
+                show_message("Passwords don't match Try Again")
 
     @staticmethod
     def until(
