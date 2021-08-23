@@ -1,7 +1,7 @@
 from random import randint, randrange, choices
 from pathlib import Path
 from linecache import getline
-from sys import stderr
+import click
 from string import ascii_letters, ascii_lowercase, digits
 from typing import Union, Optional
 
@@ -39,6 +39,7 @@ class PassGen:
 
             word_len_range (Union[range, int], optional): [description]. Defaults to range(4, 10).
         """
+
         if no_of_words < 0:
             raise ValueError("no of words in password has to be a positive number!")
 
@@ -90,8 +91,8 @@ class PassGen:
         include_uppercase: bool = True,
         special_char_count: int = 3,
     ) -> str:
-        """generate a password consisitng of a random string of characters with
-        with the specified parameters
+        """generate a password consisting of a random string of characters with
+        using the specified parameters
 
         Args:
             size (int, optional): the length of the password. Defaults to 20.
@@ -106,15 +107,14 @@ class PassGen:
             raise ValueError("size of password has to be a positive number!")
 
         if (digit_count + special_char_count) > size:
-            stderr.write(
-                "no of numbers and special charectars"
-                "can't be more than length of password itself!\n"
+            click.echo(
+                "no of numbers and special charectars can't be more than length of password itself!",
+                err=True,
             )
-            exit()
 
         letter_options = ascii_letters if include_uppercase else ascii_lowercase
 
-        # vvvvv currently only has letters and nothing else
+        # vvvvv only has letters and nothing else
         passwd_char_list = choices(
             letter_options,
             # no of letters is total size minus the no of digits and special chars
