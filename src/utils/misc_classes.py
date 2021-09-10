@@ -1,4 +1,6 @@
 from typing import Callable, List
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
 from pathlib import Path
 from functools import update_wrapper
 from inspect import signature
@@ -63,106 +65,116 @@ class PsuedoFunc(type):
         return instance.__post_init__(*args, **kwargs)
 
 
-class DirectoryTree(metaclass=PostInit):
-    space = "  "
-    pipe = "│  "
+class Node(ABC):
     tee = "├── "
     elbow = "└── "
-    elipses = "..."
+    space = "    "
+    pipe = "│   "
+
+    @abstractmethod
+    def compute_str(self, prefix, is_last) -> List[str]:
+        ...
+
+
+@dataclass
+class File(Node):
+    path: Path
     arrow = " -> "
-    MAX_RECURSE_LIMIT = 10
+    _ellipses = " ..."
 
-    def __init__(self, root_path, filter_predicate):
-        self.root_path = root_path
-        assert root_path.exists()
-        self.filter_predicate = filter_predicate
+    @classmethod
+    def ellipses(cls, prefix):
+        return "".join([*prefix, File.elbow, File._ellipses])
 
-    @staticmethod
-    def tree(
-        root: Path,
+    def compute_str(self, prefix: str, is_last: bool) -> str:
+        curr_node_name_list = prefix + [
+            File.elbow if is_last else File.tee,
+            self.path.stem,
+        ]
+        if self.path.is_symlink():
+            curr_node_name_list += [
+                File.arrow,
+                str(self.path.readlink().with_suffix("")),
+            ]
+
+        return "".join(curr_node_name_list)
+
+
+class DirectoryTree(Node):
+    MAX_RECURSE_DEPTH = 7
+
+    def __init__(
+        self,
+        path: Path,
         filter_predicate: Callable[[Path], bool],
-        prefix: str = ["├── "],
         depth: int = 0,
     ):
+        assert path.exists(), f"Directory {self.path} Does Not Exist"
+        self.path = path
+        self.is_empty: bool = False
+        self.show_ellipses: bool = False
+        self.is_root: bool = depth == 0
 
-        # this is list of nodes that will be printed in the output tree
-        # each entry will become a new line in the output tree
-        included_nodes_list = []
+        if depth >= DirectoryTree.MAX_RECURSE_DEPTH:
+            self.show_ellipses = True
+            return
 
-        for node in root.iterdir():
-            cur_node_name_list = [*prefix, node.stem]
-            if filter_predicate(node):
-                # * NOTE: a file node is only included (i.e 'valid' )
-                # * if it passes the filter_predicate
-
-                # filter_predicate returned true and node is valid
-                if node.is_symlink():
-                    # node is actually an alias to another file, so,
-                    # append " ->  relative/path/to/actual/file" to node name
-                    cur_node_name_list.extend(
-                        [DirectoryTree.arrow, str(node.readlink().with_suffix(""))]
-                    )
-                included_nodes_list.append(cur_node_name_list)
+        self.child_nodes_list: List[Node] = []
+        for node_path in self.path.iterdir():
+            if not filter_predicate(node_path):
                 continue
 
-            if node.is_dir():
-                # * NOTE: a directory node is only valid if contains atleast one valid child node
-                # * somewhere in it's subtree, so we need to search all of this node's
-                # * children recursively
+            if node_path.is_file():
+                self.child_nodes_list.append(File(node_path))
+            elif node_path.is_dir():
+                dir = DirectoryTree(node_path, filter_predicate, depth + 1)
+                if not dir.is_empty:
+                    self.child_nodes_list.append(dir)
 
-                # shallow copy is required so that the current node's
-                # sibling nodes' prefixes don't change, because we have to mutate the prefix
-                child_node_prefix = prefix.copy()
+        if len(self.child_nodes_list) == 0:
+            self.is_empty = True
+            del self.child_nodes_list
 
-                # replace the previous pointer with a pipe
-                child_node_prefix[-1] = DirectoryTree.pipe
-                child_node_prefix.extend([DirectoryTree.space, DirectoryTree.tee])
+    def compute_str(self, prefix=[], is_last=True):
+        assert not self.is_empty, "can't compute string for empty dir"
 
-                if depth > DirectoryTree.MAX_RECURSE_LIMIT:
-                    # * NOTE: if tree is deeper than MAX_RECURSE_LIMIT levels deep
-                    # * it will not be traversed, an ellipses ('...')
-                    # * as single child is shown instead
-
-                    # tree is too deep now don't traverse it, show elipses instead
-                    included_nodes_list.extend(
-                        [
-                            cur_node_name_list,
-                            # replace tee with elbow and add ellipses
-                            child_node_prefix[:-1] + [DirectoryTree.elbow, "..."],
-                        ]
-                    )
-                    continue
-
-                # valid child nodes of this current directory node
-                subtree_list = DirectoryTree.tree(
-                    node,
-                    filter_predicate,
-                    child_node_prefix,
-                    # increment depth so that traversal stops when we go too deep
-                    depth + 1,
-                )
-
-                if subtree_list is not None:
-                    included_nodes_list.extend([cur_node_name_list, *subtree_list])
-
-        if len(included_nodes_list) == 0:
-            # entire current tree didn't have any valid nodes
-            return None
-
-        # replace pointer (second last element of the last node's name list) of
-        # last node of each subtree with elbow to cap off that subtree
-        # └── last_item
-        # ^^^ an elbow symbol is used to denote the end of a tree
-        included_nodes_list[-1][-2] = DirectoryTree.elbow
-
-        return included_nodes_list
-
-    def __post_init__(self):
-        tree = DirectoryTree.tree(self.root_path, self.filter_predicate)
-        return (
-            None
-            if tree is None  # root path didn't have any valid nodes (recursivly)
-            else "\n".join(  #                       vvvv indent the lines from the left margin
-                [f"\n  {self.root_path}", *["".join(["\t", *i]) for i in tree]]
+        if self.is_root:
+            curr_node_name = f"\n{self.path.absolute()}"
+        else:
+            curr_node_name = "".join(
+                prefix
+                + [
+                    DirectoryTree.elbow if is_last else DirectoryTree.tee,
+                    self.path.absolute().name,
+                ]
             )
-        )
+        node_strings = [curr_node_name]
+
+        child_node_prefix = prefix + [
+            DirectoryTree.space if is_last else DirectoryTree.pipe
+        ]
+
+        if self.show_ellipses:
+            node_strings.append(File.ellipses(child_node_prefix))
+            return "\n".join(node_strings)
+
+        no_of_nodes = len(self.child_nodes_list)
+        for index, node in enumerate(self.child_nodes_list):
+            is_last = index == no_of_nodes - 1
+            if isinstance(node, File):
+                node_strings.append(
+                    node.compute_str(child_node_prefix, is_last=is_last)
+                )
+                continue
+
+            subdir_children = node.compute_str(child_node_prefix, is_last=is_last)
+            node_strings.append(subdir_children)
+        return "\n".join(node_strings)
+
+
+tree = DirectoryTree(
+    Path.home() / ".password-store",
+    filter_predicate=lambda node: node.is_dir()
+    or (node.is_file() and node.suffix == ".gpg"),
+)
+print(tree.compute_str())
