@@ -1,4 +1,4 @@
-from utils.crypto import KeySecretBox
+from utils.crypto import KeySecretBox, PassEncryptedMessage
 from utils.user_prompt import AskUser
 from utils.exceptions import SameKeyFileError, EmptyError
 from nacl.public import PrivateKey, PublicKey
@@ -97,9 +97,7 @@ class MasterKeyPair:
 
         with open(self.secret_key_file, "w") as secret_key_file:
             # key derivation salt is appended to the user's secret key after the '|' symbol
-            secret_key_file.write(
-                "|".join([encrypted_secret_key.hex(), secret_box.salt])
-            )
+            secret_key_file.write(encrypted_secret_key.to_hex_combined())
 
         try:
 
@@ -125,11 +123,14 @@ class MasterKeyPair:
         with open(self.secret_key_file, "r") as secret_key_file:
             # the secret and the salt are seperated by a pipe i.e '|'
             # so partition to retrieve them
-            encrypted_secret_key_bytes, _, salt = secret_key_file.read().partition("|")
+            encrypted_secret_key = PassEncryptedMessage.from_hex_combined(
+                secret_key_file.read()
+            )
 
         if passwd is not None:
-            secret_box = KeySecretBox(passwd, salt)
-            return PrivateKey(secret_box.decrypt(encrypted_secret_key_bytes))
+            return PrivateKey(
+                KeySecretBox.decrypt_message(encrypted_secret_key, passwd)
+            )
 
         ### else: prompt for password from user###
 
@@ -141,10 +142,11 @@ class MasterKeyPair:
             check if password provided was right, if yes then return the decypted secret key bytes
             else return False, so that this function runs again, when passed as a closure
             """
-            secret_box = KeySecretBox(inputted_passwd, salt)
             try:
                 # if successful return the master secret key bytes
-                return secret_box.decrypt(bytes.fromhex(encrypted_secret_key_bytes))
+                return KeySecretBox.decrypt_message(
+                    encrypted_secret_key, inputted_passwd
+                )
                 #                 ^^^^^^^ will fail if user enters wrong password
             except CryptoError:
                 # user entered wrong password and decryption failed,
@@ -209,4 +211,5 @@ class MasterKeyPair:
 
 if __name__ == "__main__":
     key_pair = MasterKeyPair()
+    key_pair.generate_keypair()
     key_pair.change_master_password()

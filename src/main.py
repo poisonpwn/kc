@@ -30,7 +30,7 @@ def retrieve_password(service_name, master_passwd_from_stdin: bool = False):
     if master_passwd_from_stdin:
         # TODO implement passing master password from stdin
         raise NotImplementedError
-    secret_key = master_key_pair.get_secret()
+    secret_key = master_key_pair.get_secret_key()
     return keystore.retrieve_passwd(service_name, secret_key)
 
 
