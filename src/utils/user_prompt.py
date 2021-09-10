@@ -1,28 +1,32 @@
 import sys
 from pynentry import PynEntry, PinEntryCancelled, show_message
 from typing import Callable, Optional, Any
-from .misc_classes import PostInit
+from misc_classes import PsuedoFunc
+from functools import wraps
 
 
-class AskUser(metaclass=PostInit):
-    def __init__(
-        self, prompt, allow_empty=False, empty_prompt="Password Can't be Empty"
-    ):
-        self.prompt_message = prompt
-        self.empty_prompt_message = empty_prompt
-        self.allow_empty = allow_empty
+class AskUser(metaclass=PsuedoFunc):
+    @staticmethod
+    def __post_init__(
+        prompt_message: str,
+        empty_prompt_message="Password Can't be Empty",
+        allow_empty=False,
+    ) -> str:
+        """prompt user with the provided prompt message and return the reply
 
-    def prompt(self):
+        Args:
+            prompt_message (str): the message to prompt the user with.
+            empty_prompt_message (str, optional): [description]. Defaults to "Password Can't be Empty".
+            allow_empty (bool, optional): [description]. Defaults to False.
+        """
         with PynEntry() as p:
-            prompt_hook = AskUser.use_prompt(p, self.prompt_message)
+            prompt_hook = AskUser.use_prompt(p, prompt_message)
             while True:
                 input_str = prompt_hook()
-                if input_str == "" and not self.allow_empty:
-                    p.description = self.empty_prompt_message
+                if input_str == "" and not allow_empty:
+                    p.description = empty_prompt_message
                     continue
                 return input_str
-
-    __post_init__ = prompt
 
     @staticmethod
     def use_prompt(pynentry_instance: PynEntry, prompt: str) -> Callable[[str], str]:
