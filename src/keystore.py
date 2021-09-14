@@ -1,8 +1,8 @@
 from nacl.public import SealedBox, PrivateKey, PublicKey
-from utils.exceptions import EmptyError
 from utils.misc_classes import DirectoryTree
 from typing import Final, Optional
 from pathlib import Path
+from utils.exceptions import KeyFileExistsAlready, EmptyError
 import os
 import click
 
@@ -12,7 +12,9 @@ class KeyStore:
     KEY_FILE_EXT = "enc"
     DEFAULT_KEY_STORE_PATH: Final[Path] = Path.home() / ".password-store"
 
-    def __init__(self, key_store_dir: Optional[Path] = None):
+    def __init__(
+        self, key_store_dir: Optional[Path] = None, should_create_keystore=True
+    ):
         self.key_store_dir = key_store_dir
         if key_store_dir is None:
             # keystore was None so check in environment
@@ -24,7 +26,7 @@ class KeyStore:
                 else Path(env_key_store_dir)
             )
 
-        if not self.key_store_dir.exists():
+        if not self.key_store_dir.exists() and should_create_keystore:
             os.makedirs(self.key_store_dir)
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
@@ -38,19 +40,16 @@ class KeyStore:
 
             public_key (nacl.public.PublicKey): the public key to be used for encrypting the password
         """
-        keyfile = self._verify_and_get_keyfile_path(service_name)
-        if keyfile.exists():
+        keyfile = KeyFile.from_service_name(service_name, self)
+        try:
+            keyfile.write_key(passwd, public_key)
+        except KeyFileExistsAlready:
             prompt = f"the keyfile {keyfile} already exists in {self.key_store_dir} Overwrite?"
             try:
                 click.confirm(prompt, default=False, abort=True, show_default=True)
             except click.Abort:
                 click.echo("Aborting...")
                 exit()
-
-        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
-
-        with open(keyfile, "w") as f:
-            f.write(encrypted_passwd_bytes.hex())
 
     def retrieve_passwd(self, service_name: str, secret_key: PrivateKey) -> str:
         """return the decrypted password from the keystore
@@ -62,32 +61,15 @@ class KeyStore:
               also becomes the file stem of the keyfile
 
         """
-        keyfile = self._verify_and_get_keyfile_path(service_name)
-        if not keyfile.exists():
+        try:
+            keyfile = KeyFile.from_service_name(service_name, self)
+            return keyfile.retrieve_key(secret_key)
+        except FileNotFoundError:
             click.echo(
                 f"password for {service_name} does not exist in keystore",
                 err=True,
             )
             exit()
-
-        with open(keyfile, "r") as f:
-            encrypted_passwd_bytes = bytes.fromhex(f.read())
-        return SealedBox(secret_key).decrypt(encrypted_passwd_bytes).decode("utf-8")
-
-    def _verify_and_get_keyfile_path(self, service_name: str):
-        """check if the service_name is not empty and if not,
-        then return the path for the keyfile
-
-        Args:
-            service_name (str): the service name to verify and return the keyfile to
-              the service name becomes the file stem of the keyfile
-
-        Returns:
-            EmptyError: if the service name is empty i.e == ""
-        """
-        if service_name == "":
-            return EmptyError("service the password is for can't be empty!")
-        return self.key_store_dir / f"{service_name}.{self.KEY_FILE_EXT}"
 
     def print_tree(self) -> Optional[str]:
         """
@@ -98,13 +80,44 @@ class KeyStore:
         """
 
         # include only those nodes themselves are key files or # is a directory which contains keyfiles somewhere in its tree
-        tree_filter_predicate = (
-            lambda node: node.is_file() and node.suffix[1:] == KeyStore.KEY_FILE_EXT
+        tree_filter_predicate = lambda node: node.is_dir() or (
+            node.is_file() and node.suffix[1:] == KeyStore.KEY_FILE_EXT
         )
-        dir_tree = DirectoryTree(self.key_store_dir, tree_filter_predicate)
-        if dir_tree is None:
-            print(f"no keys in {self.key_store_dir.absolute()}")
-            return None
 
-        print(dir_tree)
+        dir_tree = DirectoryTree(self.key_store_dir, tree_filter_predicate)
+        if dir_tree.is_empty:
+            print(f"no keys in {self.key_store_dir.absolute()}")
+            return
+        print(dir_tree.compute_str())
         return dir_tree
+
+
+class KeyFile:
+    def __init__(self, path):
+        self.path = path
+
+    @classmethod
+    def from_service_name(cls, service_name, keystore):
+        if len(service_name) == 0:
+            raise EmptyError("service name of password can't be empty!")
+        return cls(keystore.key_store_dir / f"{service_name}.{KeyStore.KEY_FILE_EXT}")
+
+    def retrieve_key(self, secret_key) -> str:
+        if not self.path.exists():
+            raise FileNotFoundError(f"KeyFile doesn't exist at {self.path}")
+
+        with open(self.path, "rb") as f:
+            encrypted_passwd_bytes = f.read()
+
+        return SealedBox(secret_key).decrypt(encrypted_passwd_bytes).decode("utf-8")
+
+    def write_key(self, key, public_key: PublicKey):
+        if self.path.exists():
+            raise KeyFileExistsAlready(
+                f"KeyFile already exists at location {self.path}"
+            )
+
+        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(key, "utf-8"))
+
+        with open(self.path, "wb") as f:
+            f.write(encrypted_passwd_bytes)
