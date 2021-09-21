@@ -1,9 +1,9 @@
-from random import randint, randrange, choices
+from random import randint, choices, shuffle
 from pathlib import Path
 from linecache import getline
-import click
 from string import ascii_letters, ascii_lowercase, digits
 from typing import Union, Optional
+import click
 
 
 class PassGen:
@@ -120,14 +120,13 @@ class PassGen:
             # no of letters is total size minus the no of digits and special chars
             k=size - (digit_count + special_char_count),
         )
-        numbers_list = choices(digits, k=digit_count)
-        special_char_list = choices(r"&$%#@!*=+-\,.;:/?", k=special_char_count)
+        # add some random numbers
+        passwd_char_list += choices(digits, k=digit_count)
 
-        # insert the digits and special chars randomly throughout the password
-        for char in numbers_list + special_char_list:
-            random_index = randrange(len(passwd_char_list))
-            passwd_char_list.insert(random_index, char)
+        # add some random special chars
+        passwd_char_list += choices(r"&$%#@!*=+-\,.;:/?", k=special_char_count)
 
+        passwd_char_list = shuffle(passwd_char_list)
         return "".join(passwd_char_list)
 
 
