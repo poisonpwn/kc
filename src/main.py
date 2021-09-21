@@ -1,16 +1,11 @@
 from master_keypair import MasterKeyPair
-from keystore import KeyStore
+from pass_store import PassStore
 from utils.user_prompt import AskUser
 from pathlib import Path
-from shutil import rmtree
 
-key_store_dir = Path(__file__).parents[1] / "test_keystore"
-
-if key_store_dir.exists():
-    rmtree(key_store_dir)
-
+key_store_dir = Path.home() / ".password-store"
 master_key_pair = MasterKeyPair()
-keystore = KeyStore(key_store_dir)
+keystore = PassStore(key_store_dir)
 
 
 def insert_passwd(
@@ -30,6 +25,7 @@ def retrieve_password(service_name, master_passwd_from_stdin: bool = False):
     if master_passwd_from_stdin:
         # TODO implement passing master password from stdin
         raise NotImplementedError
+
     secret_key = master_key_pair.get_secret_key()
     return keystore.retrieve_passwd(service_name, secret_key)
 
@@ -44,10 +40,9 @@ def generate_keypair(from_stdin: bool = False):
 
 
 def list_keystore():
-    print(keystore)
+    PassStore.KEY_FILE_EXT = "gpg"
+    keystore.print_tree()
 
 
 if __name__ == "__main__":
-    generate_keypair("test")
-    insert_passwd("discord")
-    print(retrieve_password("discord"))
+    list_keystore()
