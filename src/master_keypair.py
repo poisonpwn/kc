@@ -95,14 +95,13 @@ class MasterKeyPair:
         secret_box = KeySecretBox(master_passwd)
         encrypted_secret_key = secret_box.encrypt(secret_key.encode())
 
-        with open(self.secret_key_file, "w") as secret_key_file:
+        with open(self.secret_key_file, "wb") as secret_key_file:
             # key derivation salt is appended to the user's secret key after the '|' symbol
-            secret_key_file.write(encrypted_secret_key.to_hex_combined())
+            secret_key_file.write(bytes(encrypted_secret_key))
 
         try:
-
-            ## this should never run, this is just in case python's file equality checking fucks up
-            # earlier which it shouldn't
+            ## this should never run, this is just in case python's file equality
+            # checking messes up earlier which it shouldn't
             if self.secret_key_file.samefile(self.public_key_file):
                 self.public_key_file = self.public_key_file.with_name(
                     self.public_key_file.name + "__PUBLIC_KEY"
@@ -112,18 +111,21 @@ class MasterKeyPair:
             with open(self.public_key_file, "w") as public_key_file:
                 public_key_file.write(public_key.encode().hex())
 
-    def get_secret(self, passwd: Optional[str] = None):
+    def get_secret_key(self, passwd: Optional[str] = None):
         """
         decrypt and return the secret key from disk using provided password
+
+        Args:
+            passwd (str): master password to be used for decrypting the secret key
         """
         if not self.secret_key_file.exists():
             click.echo(f"secret key does not exist in {self.keypair_dir}!", err=True)
             exit()
 
-        with open(self.secret_key_file, "r") as secret_key_file:
+        with open(self.secret_key_file, "rb") as secret_key_file:
             # the secret and the salt are seperated by a pipe i.e '|'
             # so partition to retrieve them
-            encrypted_secret_key = PassEncryptedMessage.from_hex_combined(
+            encrypted_secret_key = PassEncryptedMessage.from_bytes(
                 secret_key_file.read()
             )
 
@@ -187,7 +189,7 @@ class MasterKeyPair:
         self, new_passwd: Optional[str] = None, old_passwd: Optional[str] = None
     ):
         """
-        change the master password using the secret key,
+        change the master password used to encrypt the secret key,
         and store it back in disk at `self.skey_key_file` location
 
         user will be prompted for value if new or old passwords are not specfied
