@@ -1,8 +1,7 @@
-import sys
 from pynentry import PynEntry, PinEntryCancelled, show_message
 from typing import Callable, Optional, Any
-from misc_classes import PsuedoFunc
-from functools import wraps
+from .psuedofunc import PsuedoFunc
+import sys
 
 
 class AskUser(metaclass=PsuedoFunc):
@@ -115,5 +114,9 @@ class AskUser(metaclass=PsuedoFunc):
                 return no_break_closure()
 
 
-if __name__ == "__main__":
+def main():
     print(AskUser("Enter something: "))
+
+
+if __name__ == "__main__":
+    main()
