@@ -1,14 +1,13 @@
-from base64 import encode
-from typing import Optional
-from pyargon2 import hash
-from nacl.secret import SecretBox, EncryptedMessage
 from nacl import encoding
-from nacl.utils import random
+from nacl.secret import SecretBox, EncryptedMessage
+from nacl.utils import random as random_bytes
+from typing import Optional
+import pyargon2
+import pickle
 
 
 class KeySecretBox(SecretBox):
-    """
-    creates a SecretBox from a key derived from
+    """creates a SecretBox from a key derived from
     the password, using argon2 key derivation
     """
 
@@ -17,16 +16,16 @@ class KeySecretBox(SecretBox):
     def __init__(
         self, passwd: str, salt: Optional[str] = None, encoding=encoding.RawEncoder
     ):
-
         """Create a SecretBox from the password provided,
-        optionallly also provide a salt, which should be used when deriving the key
-        otherwise, a salt is randomly generated
+        the salt argument, if specified, will be used to derive the key
+        else a random salt is generated.
         """
 
         if salt is None:
-            salt = random(KeySecretBox.KDF_SALT_BYTES).hex()
+            salt = random_bytes(KeySecretBox.KDF_SALT_BYTES).hex()
+
         self.salt = salt
-        derived_symmetric_key = hash(
+        derived_symmetric_key = pyargon2.hash(
             passwd,
             self.salt,
             hash_len=SecretBox.KEY_SIZE,
@@ -37,6 +36,9 @@ class KeySecretBox(SecretBox):
     def encrypt(
         self, plain_text, nonce=None, encoding=encoding.RawEncoder
     ) -> "PassEncryptedMessage":
+        """encrypt the message and return the ciphertext.
+        encode using the specified encoding format"""
+
         nacl_encrypted_message = super().encrypt(plain_text, nonce, encoding)
         return PassEncryptedMessage.from_nacl_encrypted_message(
             self.salt, nacl_encrypted_message
@@ -50,6 +52,20 @@ class KeySecretBox(SecretBox):
         nonce=None,
         encoding=encoding.RawEncoder,
     ):
+        """decrypt the message using the provided password and return the plaintext.
+
+        Args:
+            encrypted_message (PassEncryptedMessage): the message to decrypt
+            passwd (str): the password to decrypt the message with
+            nonce ([type], optional): Number used ONCE, to be used when decrypting
+              if nonce is None, it is assumed that the message object contains the nonce.
+              Defaults to None.
+            encoding (encoding.Encoder, optional): [description]. Defaults to encoding.RawEncoder.
+              the encoder to be used to encode the plaintext.
+
+        Returns:
+            [type]: [description]
+        """
         secret_box = cls(passwd, encrypted_message.salt)
         return secret_box.decrypt(
             encrypted_message,
@@ -63,10 +79,9 @@ class PassEncryptedMessage(EncryptedMessage):
     that holds an Encrypted message and the salt that was used to encrypt it
     """
 
-    def __new__(cls, cipher_text, salt: str, **kwargs):
-        encrypted_message = super().__new__(cls, cipher_text, **kwargs)
-        encrypted_message.salt = salt
-        return encrypted_message
+    def __init__(self, cipher_text, salt: str, *args, **kwargs):
+        super().__init__(cipher_text, *args, **kwargs)
+        self.salt = salt
 
     @classmethod
     def from_nacl_encrypted_message(
@@ -76,15 +91,14 @@ class PassEncryptedMessage(EncryptedMessage):
         encrypted_message.__class__ = cls
         return encrypted_message
 
+    def __bytes__(self):
+        return pickle.dumps(self)
+
     @classmethod
-    def from_hex_combined(cls, message_hex, salt_seperator="|"):
-        encrypted_message, _, salt = message_hex.partition(salt_seperator)
-        return cls(bytes.fromhex(encrypted_message), salt)
+    def from_bytes(_, bytes):
+        return pickle.loads(bytes)
 
-    def to_hex_combined(self, delim="|") -> str:
-        return delim.join([self.hex(), self.salt])
-
-    def __eq__(self, other) -> bool:
+    def __eq__(self, other: "PassEncryptedMessage") -> bool:
         return super().__eq__(other) and self.salt == other.salt
 
     def __ne__(self, other) -> bool:
