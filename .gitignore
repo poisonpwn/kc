@@ -1,3 +1,4 @@
-__pycache__
-.vscode
-test_keystore
+**/.pytest_cache
+venv
+**/__pycache__
+**/.vscode
