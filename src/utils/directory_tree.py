@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Callable, Optional
+from os.path import relpath
 
 
 class Node(ABC):
@@ -35,7 +36,7 @@ class File(Node):
             # show that file is a symlink by adding ' -> <realpath>' next to it's name
             curr_node_name_list += [
                 File.arrow,
-                str(self.path.readlink().with_suffix("")),
+                relpath(self.path.readlink().with_suffix(""), self.path.parent),
             ]
 
         return "".join(curr_node_name_list)
