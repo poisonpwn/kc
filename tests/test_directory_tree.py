@@ -1,7 +1,6 @@
 from utils.directory_tree import DirectoryTree
 from string import ascii_lowercase
-from collections import deque
-from random import choices
+from random import choices, choice
 from abc import ABC
 
 import pytest
@@ -20,9 +19,9 @@ class Dir(Node):
     def __init__(self, *args):
         self.children = args
 
-    def create_fs(self, path: str, file_queue=None):
-        if file_queue is None:
-            file_queue = deque()
+    def create_fs(self, path: str, inserted_files=None):
+        if inserted_files is None:
+            inserted_files = []
 
         for node in self.children:
             random_suffix = "".join(choices(ascii_lowercase, k=2))
@@ -30,17 +29,17 @@ class Dir(Node):
             if node is File:
                 child_filepath = path / f"file-{random_suffix}.enc"
                 open(child_filepath, "a").close()
-                file_queue.appendleft(child_filepath)
+                inserted_files.append(child_filepath)
                 continue
 
             if isinstance(node, Dir):
                 child_dir_path = path / f"dir-{random_suffix}"
                 os.mkdir(child_dir_path)
-                node.create_fs(child_dir_path, file_queue)
+                node.create_fs(child_dir_path, inserted_files)
                 continue
 
         child_filepath = path / f"link-{random_suffix}.enc"
-        os.symlink(file_queue.pop(), child_filepath)
+        os.symlink(choice(inserted_files), child_filepath)
 
 
 test_keystore_schema = Dir(
