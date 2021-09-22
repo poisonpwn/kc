@@ -5,12 +5,12 @@ message = b"this is a message."
 passwd = "this is a password."
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True, scope="module")
 def key_secret_box():
     return crypto.KeySecretBox(passwd)
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def cipher_text(key_secret_box: crypto.KeySecretBox):
     return key_secret_box.encrypt(message)
 
