@@ -12,54 +12,20 @@ import click
 
 
 class MasterKeyPair:
-    KEYPAIR_DIR_ENV_VAR = "NACL_KEYPAIR_DIR"
-    DEFAULT_SECRET_KEY_FILESTEM = "nacl_seckey"
-    DEFAULT_PUBLIC_KEY_FILESTEM = "nacl_pubkey"
-    PUBKEY_EXT = ".pub"
-    SECKEY_EXT = ".enc"
-    DEFAULT_KEYPAIR_DIR_PATH: Final[Path] = Path.home() / ".keys"
-
     def __init__(
         # all of these defaults to None because
         # argparse returns None when option is not specified
         self,
-        keypair_dir: Optional[Path] = None,
-        secret_key_file_stem: Optional[str] = None,
-        public_key_file_stem: Optional[str] = None,
+        keypair_dir: Path,
+        secret_key_file_stem: Path,
+        public_key_file_stem: Path,
     ):
         self.keypair_dir = keypair_dir
-        if keypair_dir is None:
-            # key_pair_dir was not specified so check the environment
-            env_key_dir = os.environ.get(MasterKeyPair.KEYPAIR_DIR_ENV_VAR)
-            self.keypair_dir = (
-                # if keypair_dir was not specified in the environment either
-                MasterKeyPair.DEFAULT_KEYPAIR_DIR_PATH
-                if env_key_dir is None
-                else Path(env_key_dir)
-            )  # directory where keypair is contained:
-
         if not self.keypair_dir.exists():
             os.makedirs(self.keypair_dir)
 
         if public_key_file_stem == "" or secret_key_file_stem == "":
             raise EmptyError("public and secret key files can't be empty")
-
-        self.public_key_file = (
-            self.keypair_dir
-            / (
-                MasterKeyPair.DEFAULT_PUBLIC_KEY_FILESTEM + MasterKeyPair.PUBKEY_EXT
-                if public_key_file_stem is None
-                else public_key_file_stem
-            )
-        ).absolute()
-        self.secret_key_file = (
-            self.keypair_dir
-            / (
-                MasterKeyPair.DEFAULT_SECRET_KEY_FILESTEM + MasterKeyPair.SECKEY_EXT
-                if secret_key_file_stem is None
-                else secret_key_file_stem
-            )
-        ).absolute()
 
         if self.secret_key_file == self.public_key_file:
             raise SameKeyFileError("public key and secret key files can't be the same")
