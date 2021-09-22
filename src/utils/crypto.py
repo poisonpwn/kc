@@ -64,7 +64,7 @@ class KeySecretBox(SecretBox):
               the encoder to be used to encode the plaintext.
 
         Returns:
-            [type]: [description]
+            Any: the decrypted message
         """
         secret_box = cls(passwd, encrypted_message.salt)
         return secret_box.decrypt(

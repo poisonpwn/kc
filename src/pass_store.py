@@ -166,7 +166,7 @@ class PassFile:
 
         return decrypted_passwd_bytes.decode("utf-8")
 
-    def write_passwd(self, key: str, public_key: PublicKey):
+    def write_passwd(self, passwd: str, public_key: PublicKey):
         """encrypt and write the passfile to disk
 
         Args:
@@ -181,7 +181,7 @@ class PassFile:
         if self.path.exists():
             raise PassFileExistsErr(f"passfile already exists at location {self.path}")
 
-        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(key, "utf-8"))
+        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
 
         with open(self.path, "wb") as f:
             f.write(encrypted_passwd_bytes)
