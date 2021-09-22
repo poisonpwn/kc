@@ -3,17 +3,73 @@ from pathlib import Path
 from linecache import getline
 from string import ascii_letters, ascii_lowercase, digits
 from typing import Union, Optional
+from abc import ABC, abstractmethod
 import click
 
 
-class PassGen:
-    def __init__(self):
-        # TODO: implement dispatch to password generators
+class PasswordGenerator(ABC):
+    @staticmethod
+    @abstractmethod
+    def generate(*args, **kwargs) -> str:
         pass
 
-    # static method can't be used normally
-    # here because this function is monkey patched
-    def xkcd(
+
+class RandomChars(PasswordGenerator):
+    SPECIAL_CHARS = r"&$%#@!*=+-\,.;:/?"
+
+    @staticmethod
+    def generate(
+        size: int = 20,
+        digit_count: int = 3,
+        include_uppercase: bool = True,
+        special_char_count: int = 3,
+    ) -> str:
+        """generate a password consisting of a random string of characters with
+        using the specified parameters
+
+        Args:
+            size (int, optional): the length of the password. Defaults to 20.
+
+            digit_count (int, optional): no of digits to include in the password. Defaults to 3.
+
+            include_uppercase (bool, optional): whether to include the uppercase alphabet. Defaults to True.
+
+            special_char_count (int, optional): no of special charectars to include in the password. Defaults to 3.
+        """
+        if size < 1:
+            raise ValueError("size of password has to be a positive number!")
+
+        if (digit_count + special_char_count) > size:
+            click.echo(
+                "no of numbers and special charectars can't be more than length of password itself!",
+                err=True,
+            )
+
+        letter_options = ascii_letters if include_uppercase else ascii_lowercase
+
+        # vvvvv only has letters and nothing else
+        passwd_char_list = choices(
+            letter_options,
+            # no of letters is total size minus the no of digits and special chars
+            k=size - (digit_count + special_char_count),
+        )
+        # add some random numbers
+        passwd_char_list += choices(digits, k=digit_count)
+
+        # add some random special chars
+        passwd_char_list += choices(RandomChars.SPECIAL_CHARS, k=special_char_count)
+
+        shuffle(passwd_char_list)
+        return "".join(passwd_char_list)
+
+
+class XKCD(PasswordGenerator):
+    WORDLIST_DIR: Path = Path(__file__).parents[2].absolute()
+    WORDLIST_FILE: Path = WORDLIST_DIR / "wordlist.txt"
+    LINE_RANGE = (4, 7700)  # only words between these line numbers are chosen
+
+    @staticmethod
+    def generate(
         no_of_words: int = 5,
         delim: str = "-",
         include_size: bool = True,
@@ -60,8 +116,8 @@ class PassGen:
         word_len_sum = 0
         while len(word_list) < no_of_words:
             word = getline(
-                str(PassGen.xkcd.WORDLIST_FILE),
-                randint(*PassGen.xkcd.LINE_RANGE),
+                str(XKCD.WORDLIST_FILE),
+                randint(*XKCD.LINE_RANGE),
             ).strip()
             if word_pass_predicate(word_len := len(word)):
                 word_len_sum += word_len
@@ -79,57 +135,8 @@ class PassGen:
             )
         return delim.join(word_list)
 
-    xkcd.WORDLIST_DIR = Path(__file__).parents[2].absolute()
-    xkcd.WORDLIST_FILE = xkcd.WORDLIST_DIR / "wordlist.txt"
-    xkcd.LINE_RANGE = (4, 7700)  # only words between these line numbers are chosen
-    xkcd = staticmethod(xkcd)
 
-    @staticmethod
-    def random_chars(
-        size: int = 20,
-        digit_count: int = 3,
-        include_uppercase: bool = True,
-        special_char_count: int = 3,
-    ) -> str:
-        """generate a password consisting of a random string of characters with
-        using the specified parameters
-
-        Args:
-            size (int, optional): the length of the password. Defaults to 20.
-
-            digit_count (int, optional): no of digits to include in the password. Defaults to 3.
-
-            include_uppercase (bool, optional): whether to include the uppercase alphabet. Defaults to True.
-
-            special_char_count (int, optional): no of special charectars to include in the password. Defaults to 3.
-        """
-        if size < 1:
-            raise ValueError("size of password has to be a positive number!")
-
-        if (digit_count + special_char_count) > size:
-            click.echo(
-                "no of numbers and special charectars can't be more than length of password itself!",
-                err=True,
-            )
-
-        letter_options = ascii_letters if include_uppercase else ascii_lowercase
-
-        # vvvvv only has letters and nothing else
-        passwd_char_list = choices(
-            letter_options,
-            # no of letters is total size minus the no of digits and special chars
-            k=size - (digit_count + special_char_count),
-        )
-        # add some random numbers
-        passwd_char_list += choices(digits, k=digit_count)
-
-        # add some random special chars
-        passwd_char_list += choices(r"&$%#@!*=+-\,.;:/?", k=special_char_count)
-
-        passwd_char_list = shuffle(passwd_char_list)
-        return "".join(passwd_char_list)
-
-
-if __name__ == "__main__":
-    print(PassGen.xkcd())
-    print(PassGen.random_chars())
+class PassGenFactory:
+    def __init__(self):
+        # TODO: implement dispatch to password generators
+        raise NotImplementedError
