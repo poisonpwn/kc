@@ -65,7 +65,6 @@ def keystore_root_path(tmp_path):
     return tmp_path
 
 
-@pytest.mark.skip
 def test_dir_tree(keystore_root_path, capsys):
     keystore_dir = DirectoryTree(keystore_root_path, lambda _: True)
     with capsys.disabled():
