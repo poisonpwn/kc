@@ -17,7 +17,7 @@ Symlink = type("Symlink", (Node,), {})
 
 
 class Dir(Node):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
         self.children = args
 
     def create_fs(self, path: str, file_queue=None):
