@@ -14,6 +14,12 @@ class PostInitNotFoundErr(Exception):
     pass
 
 
+class InvalidFilenameErr(Exception):
+    """Error raised when invalid filename argument is passed in"""
+
+    pass
+
+
 class PassFileExistsErr(Exception):
     """Error raised when a keyfile is attempted to be entered
     into the keystore but it already exists"""

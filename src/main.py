@@ -4,7 +4,10 @@ from utils.user_prompt import AskUser
 from pathlib import Path
 
 key_store_dir = Path.home() / ".password-store"
-master_key_pair = MasterKeyPair()
+master_key_pair = MasterKeyPair(
+    Path.home() / ".keys/nacl_seckey.enc",
+    Path.home() / ".keys/nacl_pubkey.pub",
+)
 keystore = PassStore(key_store_dir)
 
 
@@ -45,4 +48,4 @@ def list_keystore():
 
 
 if __name__ == "__main__":
-    list_keystore()
+    generate_keypair()

@@ -1,34 +1,54 @@
 from utils.crypto import KeySecretBox, PassEncryptedMessage
 from utils.user_prompt import AskUser
-from utils.exceptions import SameKeyFileError, EmptyError
+from utils.exceptions import InvalidFilenameErr, SameKeyFileError, EmptyError
 from nacl.public import PrivateKey, PublicKey
 from nacl.exceptions import CryptoError
 from pynentry import PynEntry
 from pathlib import Path
-from typing import Final, Optional
+from typing import Optional
 from sys import exit
-import os
 import click
 
 
 class MasterKeyPair:
+    SECKEY_FILE_EXT = ".enc"
+    PUBKEY_FILE_EXT = ".pub"
+
     def __init__(
         # all of these defaults to None because
         # argparse returns None when option is not specified
         self,
-        keypair_dir: Path,
-        secret_key_file_stem: Path,
-        public_key_file_stem: Path,
+        secret_key_file: Path,
+        public_key_file: Path,
     ):
-        self.keypair_dir = keypair_dir
-        if not self.keypair_dir.exists():
-            os.makedirs(self.keypair_dir)
+        self.secret_key_file = secret_key_file.absolute()
+        self.public_key_file = public_key_file.absolute()
 
-        if public_key_file_stem == "" or secret_key_file_stem == "":
-            raise EmptyError("public and secret key files can't be empty")
+        if self.secret_key_file.parent != self.public_key_file.parent:
+            raise InvalidFilenameErr("keyfiles must be under the same directory.")
+
+        if secret_key_file.name == "" or public_key_file.name == "":
+            raise EmptyError("keyfile name's can't be empty!.")
+
+        if secret_key_file.suffix != MasterKeyPair.SECKEY_FILE_EXT:
+            raise InvalidFilenameErr(
+                f"secret key file name has to have extension {MasterKeyPair.SECKEY_FILE_EXT}"
+            )
+
+        if public_key_file.suffix != MasterKeyPair.PUBKEY_FILE_EXT:
+            raise InvalidFilenameErr(
+                f"secret key file name has to have extension {MasterKeyPair.PUBKEY_FILE_EXT}"
+            )
 
         if self.secret_key_file == self.public_key_file:
-            raise SameKeyFileError("public key and secret key files can't be the same")
+            raise SameKeyFileError("public key and secret key files can't be the same.")
+
+        if not self.keypair_dir.exists():
+            self.keypair_dir.mkdir()
+
+    @property
+    def keypair_dir(self):
+        return self.secret_key_file.parent
 
     def generate_keypair(self, master_passwd: Optional[str] = None):
         """
