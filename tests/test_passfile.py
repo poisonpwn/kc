@@ -22,7 +22,7 @@ def test_nonexistant_read(pass_file: PassFile, secret_key):
 passwd = "test password in pass store"
 
 
-def test_passwd_write(pass_file: PassFile, public_key) -> str:
+def test_passwd_write(pass_file: PassFile, public_key):
     pass_file.write_passwd(passwd, public_key)
     with pytest.raises(PassFileExistsErr):
         pass_file.write_passwd(passwd, public_key)

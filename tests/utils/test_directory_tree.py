@@ -1,4 +1,5 @@
 from utils.directory_tree import DirectoryTree
+from pathlib import Path
 from string import ascii_lowercase
 from random import choices, choice
 from abc import ABC
@@ -19,7 +20,7 @@ class Dir(Node):
     def __init__(self, *args):
         self.children = args
 
-    def create_fs(self, path: str, inserted_files=None):
+    def create_fs(self, path: Path, inserted_files=None):
         if inserted_files is None:
             inserted_files = []
 

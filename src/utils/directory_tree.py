@@ -12,7 +12,7 @@ class Node(ABC):
     pipe = "│   "
 
     @abstractmethod
-    def compute_str(self, prefix, is_last) -> List[str]:
+    def compute_str(self, prefix, is_last):
         pass
 
 
@@ -26,7 +26,7 @@ class File(Node):
     def show_ellipses(cls, prefix):
         return "".join([*prefix, File.elbow, File.ellipses])
 
-    def compute_str(self, prefix: str, is_last: bool) -> str:
+    def compute_str(self, prefix: List[str], is_last: bool) -> str:
         curr_node_name_list = prefix + [
             File.elbow if is_last else File.tee,
             self.path.stem,
