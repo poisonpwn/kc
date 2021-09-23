@@ -41,7 +41,10 @@ class MasterKeyPair:
             )
 
         if self.secret_key_file == self.public_key_file:
-            raise SameKeyFileError("public key and secret key files can't be the same.")
+            raise SameKeyFileError(
+                self.secret_key_file,
+                "public key and secret key files can't be the same.",
+            )
 
         if not self.keypair_dir.exists():
             self.keypair_dir.mkdir()
@@ -92,7 +95,10 @@ class MasterKeyPair:
                 self.public_key_file = self.public_key_file.with_name(
                     self.public_key_file.name + "__PUBLIC_KEY"
                 )
-                raise SameKeyFileError("public and private keyfiles can't be the same")
+                raise SameKeyFileError(
+                    self.secret_key_file,
+                    "public and private keyfiles can't be the same",
+                )
         finally:
             with open(self.public_key_file, "w") as public_key_file:
                 public_key_file.write(public_key.encode().hex())
@@ -181,7 +187,7 @@ class MasterKeyPair:
         user will be prompted for value if new or old passwords are not specfied
         """
         assert new_passwd != ""
-        secret_key = self.get_secret(old_passwd)
+        secret_key = self.get_secret_key(old_passwd)
         if new_passwd is None:
             new_passwd = AskUser.and_confirm(
                 "Enter new master password: ", allow_empty=False
@@ -197,7 +203,7 @@ class MasterKeyPair:
             )
 
 
-if __name__ == "__main__":
-    key_pair = MasterKeyPair()
-    key_pair.generate_keypair()
-    key_pair.change_master_password()
+# if __name__ == "__main__":
+# key_pair = MasterKeyPair()
+# key_pair.generate_keypair()
+# key_pair.change_master_password()
