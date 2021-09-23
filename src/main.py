@@ -19,9 +19,9 @@ def insert_passwd(
         # TODO implement piping password from stdin
         raise NotImplementedError
     else:
-        passwd = AskUser("Enter Password: ", allow_empty=allow_empty)
+        passwd = AskUser("Enter Password: ", allow_empty=allow_empty)  # type: ignore
 
-    keystore.insert_passwd(service_name, passwd, public_key)
+    keystore.insert_passwd(service_name, passwd, public_key)  # type: ignore
 
 
 def retrieve_password(service_name, master_passwd_from_stdin: bool = False):

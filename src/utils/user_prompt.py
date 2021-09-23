@@ -21,14 +21,16 @@ class AskUser(metaclass=PsuedoFunc):
         with PynEntry() as p:
             prompt_hook = AskUser.use_prompt(p, prompt_message)
             while True:
-                input_str = prompt_hook()
+                input_str = prompt_hook()  # type: ignore
                 if input_str == "" and not allow_empty:
                     p.description = empty_prompt_message
                     continue
                 return input_str
 
     @staticmethod
-    def use_prompt(pynentry_instance: PynEntry, prompt: str) -> Callable[[str], str]:
+    def use_prompt(
+        pynentry_instance: PynEntry, prompt: str
+    ) -> Callable[[Optional[str]], str]:
         """
         returns a closure which prompts user for input with the
         specified prompt using the current `pynentry_instance`
