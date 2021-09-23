@@ -98,8 +98,11 @@ class PassEncryptedMessage(EncryptedMessage):
     def from_bytes(_, bytes):
         return pickle.loads(bytes)
 
-    def __eq__(self, other: "PassEncryptedMessage") -> bool:
-        return super().__eq__(other) and self.salt == other.salt
+    def __eq__(self, other) -> bool:
+        eq = super().__eq__(other)
+        if isinstance(other, PassEncryptedMessage):
+            return eq and other.salt == self.salt
+        return eq
 
     def __ne__(self, other) -> bool:
         return not (self == other)
