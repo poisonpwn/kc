@@ -194,16 +194,16 @@ class MasterKeyPair:
             )
 
         secret_box = KeySecretBox(new_passwd)
-        with open(self.secret_key_file, "w") as secret_key_file:
-            secret_key = secret_key_file.write(
-                # write the salt and encrypted secret key bytes seperated by a pipe symbol
-                "|".join(
-                    [secret_box.encrypt(secret_key.encode()).hex(), secret_box.salt]
-                )
-            )
+        encrypted_secret_key = secret_box.encrypt(secret_key.encode())
+
+        with open(self.secret_key_file, "wb") as f:
+            f.write(bytes(encrypted_secret_key))
 
 
-# if __name__ == "__main__":
-# key_pair = MasterKeyPair()
-# key_pair.generate_keypair()
-# key_pair.change_master_password()
+if __name__ == "__main__":
+    key_pair = MasterKeyPair(
+        Path.home() / ".keys/nacl_seckey.enc",
+        Path.home() / ".keys/nacl_pubkey.pub",
+    )
+    key_pair.generate_keypair()
+    key_pair.change_master_password()
