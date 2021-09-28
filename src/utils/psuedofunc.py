@@ -24,13 +24,7 @@ class PsuedoFunc(type):
         cls_post_init = dct.get("__post_init__")
 
         if cls_post_init is None:
-            print(
-                f"class {dct['__name__']} needs to have "
-                "__post_init__ attribute defined."
-            )
-            raise PostInitNotFoundErr(
-                "can't find __post_init__ in class passed in to PostInit"
-            )
+            raise PostInitNotFoundErr(f"can't find __post_init__ in {name}")
 
         if isinstance(cls_post_init, (staticmethod, classmethod)):
             cls_post_init = cls_post_init.__func__  # the actual function inside
@@ -50,11 +44,10 @@ class PsuedoFunc(type):
 
         # replace init with the newly formed one
         dct["__init__"] = cls_init
-        return type.__new__(meta_cls, name, bases, dct)
+        return super().__new__(meta_cls, name, bases, dct)
 
     def __call__(cls, *args, **kwargs):
         # make sure the __init__ runs with same args
-        instance = type.__call__(cls, *args, **kwargs)
-
+        instance = super().__call__(cls, *args, **kwargs)
         # call the post init with the same arguments so as to imitate a real function
         return instance.__post_init__(*args, **kwargs)
