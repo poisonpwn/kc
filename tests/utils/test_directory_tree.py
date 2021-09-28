@@ -39,8 +39,8 @@ class Dir(Node):
                 node.create_fs(child_dir_path, inserted_files)
                 continue
 
-        child_filepath = path / f"link-{random_suffix}.enc"
-        os.symlink(choice(inserted_files), child_filepath)
+            child_filepath = path / f"link-{random_suffix}.enc"
+            os.symlink(choice(inserted_files), child_filepath)
 
 
 test_keystore_schema = Dir(
