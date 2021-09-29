@@ -1,93 +1,91 @@
 from pynentry import PynEntry, PinEntryCancelled, show_message
-from typing import Callable, Optional, Any
+from typing import Callable, Optional, Any, Type
 from .psuedofunc import PsuedoFunc
+from pwinput import pwinput
+from shutil import which
+from abc import abstractmethod, ABCMeta
 import sys
+import click
+
+"""
+We can't use ABC by itself because another metaclass is also used
+and it will error out in the subclasses inheriting from the ABC
+because ABC does not use PsuedoFunc as it's metaclass
+
+because if a metaclass and inheritance is used together to create a class,
+all the bases of that class should be using that same metaclass (or subclass of that metaclass)
+for it's creation, since we have to use ABC which is created using the ABCMeta metaclass 
+and we have to use PsuedoFunc metaclass,
+
+to create the PromptStrategy abstract class we have to create a metaclass
+which inherits from both ABCMeta and PsuedoFunc, so that classes inheriting from
+PromptStrategy can also use PseudoFunc.
+"""
 
 
-class AskUser(metaclass=PsuedoFunc):
+class AbstractPsuedoFunc(ABCMeta, PsuedoFunc):
+    pass
+
+
+class PromptStrategy(metaclass=AbstractPsuedoFunc):
+    DEFAULT_EMPTY_MESSAGE = "Password Can't Be Empty!"
+    DEFAULT_MISMATCH_MESSAGE = "Passwords Don't Match!"
+
     @staticmethod
+    @abstractmethod
     def __post_init__(
-        prompt_message: str,
-        empty_prompt_message="Password Can't be Empty",
-        allow_empty=False,
-    ) -> str:
+        prompt: str,
+        allow_empty: bool = False,
+        *,
+        empty_message: Optional[str] = None,
+    ):
         """prompt user with the provided prompt message and return the reply
 
         Args:
             prompt_message (str): the message to prompt the user with.
-            empty_prompt_message (str, optional): [description]. Defaults to "Password Can't be Empty".
-            allow_empty (bool, optional): [description]. Defaults to False.
+            empty_prompt_message (str, optional): Defaults to "Password Can't be Empty".
+            allow_empty (bool, optional):  Defaults to False.
         """
-        with PynEntry() as p:
-            prompt_hook = AskUser.use_prompt(p, prompt_message)
-            while True:
-                input_str = prompt_hook()  # type: ignore
-                if input_str == "" and not allow_empty:
-                    p.description = empty_prompt_message
-                    continue
-                return input_str
+        raise NotImplementedError(
+            "__post_init__ not implemented in subclass of abstract class!"
+        )
 
     @staticmethod
-    def use_prompt(
-        pynentry_instance: PynEntry, prompt: str
-    ) -> Callable[[Optional[str]], str]:
-        """
-        returns a closure which prompts user for input with the
-        specified prompt using the current `pynentry_instance`
-
-        it is also possible to pass a temporary prompt to the closure when calling it,
-        which is then reset automatically after the closure runs
-        """
-        pynentry_instance.prompt = prompt
-
-        def _prompt_user(temp_prompt: Optional[str] = None) -> str:
-            """
-            prompts user for input and, if it is cancelled, aborts program
-
-            if a prompt is specified as an argument temporarily sets that prompt
-            before resetting to old one this is done as to not pollute the PynEntry instance
-            """
-            # this is here so that if there was an old prompt before this
-            # we can use the old prompt and then revert to the old one later
-            old_prompt = pynentry_instance.prompt
-            if temp_prompt is not None:
-                pynentry_instance.prompt = temp_prompt
-            try:
-                passwd = pynentry_instance.get_pin()
-            except PinEntryCancelled:
-                sys.stderr.write("operation cancelled! Abort!\n")
-                sys.exit()
-            pynentry_instance.prompt = old_prompt
-            return passwd
-
-        return _prompt_user
-
-    @staticmethod
+    @abstractmethod
     def and_confirm(
-        prompt: str, confirm_prompt="Confirm Password: ", allow_empty: bool = False
-    ) -> str:
+        prompt: str,
+        confirm_prompt="Confirm Password: ",
+        allow_empty: bool = False,
+        *,
+        empty_message: Optional[str] = None,
+        mismatch_message: Optional[str] = None,
+    ):
         """
         prompt input from user and ask to input it, again to confirm the input
         if the two instances don't match, the process is repeated till
         a match is obtained
-        """
-        with PynEntry() as p:
-            prompt_password = AskUser.use_prompt(p, prompt)
-            while True:
-                passwd = prompt_password()
-                if not passwd and not allow_empty:
-                    show_message("Password can't be empty! Try Again")
-                    continue
 
-                confirm_passwd = prompt_password(confirm_prompt)
-                if passwd == confirm_passwd:
-                    return passwd
-                show_message("Passwords don't match Try Again")
+        Args:
+            prompt (str): message to the user with
+            confirm_prompt (str, optional): confirm message to ask the user
+              Defaults to "Confirm Password: ".
+            allow_empty (bool, optional): should password to be empty or not.
+              Defaults to False.
+            empty_message (str, optional): the message to show when password entered
+              is empty. if None, use default empty message. Defaults to None.
+            mismatch_message (str, optional): message to show when password entered
+              does not match second attempt if None use default mismatch message.
+              Defaults to None.
+        """
+        raise NotImplementedError(
+            "and_confirm not implemented in subclass of abstract class!"
+        )
 
     @staticmethod
+    @abstractmethod
     def until(
         prompt: str,
-        breaking_closure: Callable[[str, PynEntry, int], Any],
+        breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
         no_break_closure: Callable[[], Any],
         attempt_count: int = 3,
     ):
@@ -101,12 +99,180 @@ class AskUser(metaclass=PsuedoFunc):
         then if it is True, the `current_inputted_password` is returned out of
         the function, else the return value of the breaking_closure is returned out
         the function instead
+
+        Args:
+            prompt (str): the message to prompt the user with
+            breaking_closure (Callable[[str, int, Optional[PynEntry]], Any])
+            no_break_closure (Callable[[], Any])
+            attempt_count (int, optional): No of Attempts the user has to enter
+              the right password. Defaults to 3.
         """
+        raise NotImplementedError(
+            "until not implemented in subclass of abstract class!"
+        )
+
+
+class TTYAskUser(PromptStrategy, metaclass=PsuedoFunc):
+    @staticmethod
+    def __post_init__(
+        prompt: str,
+        allow_empty: bool = False,
+        *,
+        empty_message: Optional[str] = None,
+    ):
+        empty_message = (
+            TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
+        )
+        while True:
+            reply = pwinput(prompt)
+            if len(reply) == 0 and not allow_empty:
+                click.echo(empty_message)
+            else:
+                return reply
+
+    @staticmethod
+    def and_confirm(
+        prompt: str,
+        confirm_prompt="Confirm Password: ",
+        allow_empty: bool = False,
+        *,
+        mismatch_message: Optional[str] = None,
+        empty_message: Optional[str] = None,
+    ):
+        mismatch_message = (
+            TTYAskUser.DEFAULT_MISMATCH_MESSAGE
+            if mismatch_message is None
+            else mismatch_message
+        )
+        while True:
+            reply, confirm_reply = [
+                TTYAskUser(prompt, allow_empty, empty_message=empty_message)
+                for prompt in [prompt, confirm_prompt]
+            ]
+            if reply == confirm_reply:
+                return reply
+            click.echo(mismatch_message)
+
+    @staticmethod
+    def until(
+        prompt: str,
+        breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
+        no_break_closure: Callable[[], Any],
+        attempt_count: int = 3,
+    ):
+        for i in range(1, attempt_count + 1):
+            inputted_value = TTYAskUser(prompt)
+            closure_result = breaking_closure(
+                inputted_value,
+                attempt_count - i,
+                None,  # pass in PynEntry instance as None so that the closure handles it
+            )
+            if not isinstance(closure_result, bool):
+                return closure_result
+            if closure_result:
+                return inputted_value
+        else:
+            # ran out of attempts, proceed with failing case
+            return no_break_closure()
+
+
+class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
+    @staticmethod
+    def __post_init__(
+        prompt: str,
+        allow_empty=False,
+        empty_message: Optional[str] = None,
+    ) -> str:
+        empty_message = empty_message or PinentryAskUser.DEFAULT_EMPTY_MESSAGE
         with PynEntry() as p:
-            prompt_user = AskUser.use_prompt(p, prompt)
+            prompt_hook = PinentryAskUser.use_prompt(p, prompt)
+            while input_str := prompt_hook():
+                if input_str == "" and not allow_empty:
+                    show_message(empty_message)
+                else:
+                    return input_str
+
+    @staticmethod
+    def use_prompt(
+        pynentry_instance: PynEntry, prompt: str
+    ) -> Callable[[Optional[str]], str]:
+        """
+        returns a closure which prompts user for input with the
+        specified prompt using the current `pynentry_instance`
+
+        it is also possible to pass a temporary prompt to the closure when calling it,
+        which is then reset automatically after the closure runs
+        """
+
+        pynentry_instance.prompt = prompt
+
+        def _prompt_user(temp_prompt: Optional[str] = None) -> str:
+            """
+            prompts user for input and, if it is cancelled, aborts program
+
+            if a prompt is specified as an argument temporarily sets that prompt
+            before resetting to old one this is done as to not pollute the PynEntry instance
+            """
+            # this is here so that if there was an old prompt before this
+            # we can use the new prompt and then revert to the old one later
+            old_prompt = pynentry_instance.prompt
+            if temp_prompt is not None:
+                pynentry_instance.prompt = temp_prompt
+
+            try:
+                passwd = pynentry_instance.get_pin()
+            except PinEntryCancelled:
+                sys.stderr.write("operation cancelled! Abort!\n")
+                sys.exit()
+            pynentry_instance.prompt = old_prompt
+            return passwd
+
+        return _prompt_user
+
+    @staticmethod
+    def and_confirm(
+        prompt: str,
+        confirm_prompt="Confirm Password: ",
+        allow_empty: bool = False,
+        *,
+        mismatch_message: Optional[str] = None,
+        empty_message: Optional[str] = None,
+    ) -> str:
+        empty_message = (
+            PinentryAskUser.DEFAULT_EMPTY_MESSAGE
+            if empty_message is None
+            else empty_message
+        )
+        mismatch_message = (
+            PinentryAskUser.DEFAULT_MISMATCH_MESSAGE
+            if mismatch_message is None
+            else mismatch_message
+        )
+        with PynEntry() as p:
+            prompt_password = PinentryAskUser.use_prompt(p, prompt)
+            while True:
+                passwd = prompt_password()
+                if not passwd and not allow_empty:
+                    show_message(empty_message)
+                    continue
+
+                confirm_passwd = prompt_password(confirm_prompt)
+                if passwd == confirm_passwd:
+                    return passwd
+                show_message(mismatch_message)
+
+    @staticmethod
+    def until(
+        prompt: str,
+        breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
+        no_break_closure: Callable[[], Any],
+        attempt_count: int = 3,
+    ):
+        with PynEntry() as p:
+            prompt_user = PinentryAskUser.use_prompt(p, prompt)
             for i in range(1, attempt_count + 1):
                 inputted_value = prompt_user()
-                closure_result = breaking_closure(inputted_value, p, attempt_count - i)
+                closure_result = breaking_closure(inputted_value, attempt_count - i, p)
                 if not isinstance(closure_result, bool):
                     return closure_result
                 if closure_result:
@@ -116,9 +282,4 @@ class AskUser(metaclass=PsuedoFunc):
                 return no_break_closure()
 
 
-def main():
-    print(AskUser("Enter something: "))
-
-
-if __name__ == "__main__":
-    main()
+AskUser: Type[PromptStrategy] = PinentryAskUser if which("pinentry") else TTYAskUser

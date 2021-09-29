@@ -2,3 +2,4 @@ pyargon2==1.0.0
 PyNaCl==1.4.0
 click==7.1.2
 pynentry==0.1.4
+pwinput==1.0.2

@@ -130,7 +130,9 @@ class MasterKeyPair:
 
         # executes this function while there are attempts left
         def check_if_right_passwd(
-            inputted_passwd: str, pyentry_instance: PynEntry, attempts_left: int
+            inputted_passwd: str,
+            attempts_left: int,
+            pyentry_instance: Optional[PynEntry],
         ):
             """
             check if password provided was right, if yes then return the decypted secret key bytes
@@ -139,15 +141,25 @@ class MasterKeyPair:
             try:
                 # if successful return the master secret key bytes
                 return KeySecretBox.decrypt_message(
-                    encrypted_secret_key, inputted_passwd
+                    encrypted_secret_key,
+                    inputted_passwd,
                 )
-                #                 ^^^^^^^ will fail if user enters wrong password
+
             except CryptoError:
                 # user entered wrong password and decryption failed,
-                # update the descsription with the number of attempts and try again
-                pyentry_instance.description = (
+                wrong_passwd_mesg = (
                     f"Wrong Password! Try Again {attempts_left} tries left"
                 )
+
+                if pyentry_instance is not None:
+                    # update the descsription and try again
+                    pyentry_instance.description = wrong_passwd_mesg
+                else:
+                    # if pynentry instance was none because user does not have pinentry
+                    # just echo the message and try again
+
+                    click.echo(wrong_passwd_mesg, err=True)
+
                 # return False to run this function again on next attempt
                 return False
 
