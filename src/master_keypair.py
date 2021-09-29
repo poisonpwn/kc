@@ -156,8 +156,7 @@ class MasterKeyPair:
                     pyentry_instance.description = wrong_passwd_mesg
                 else:
                     # if pynentry instance was none because user does not have pinentry
-                    # just echo the message and try again
-
+                    # just echo the message and try again.
                     click.echo(wrong_passwd_mesg, err=True)
 
                 # return False to run this function again on next attempt
@@ -165,7 +164,7 @@ class MasterKeyPair:
 
         # executes this when the user runs out of attempts
         def ran_out_of_attempts():
-            click.echo("Wrong Password!", err=True)
+            click.echo("Wrong Password!, you ran out of attempts!.", err=True)
             exit()
 
         return PrivateKey(

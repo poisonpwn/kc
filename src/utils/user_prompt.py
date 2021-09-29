@@ -271,12 +271,12 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
         with PynEntry() as p:
             prompt_user = PinentryAskUser.use_prompt(p, prompt)
             for i in range(1, attempt_count + 1):
-                inputted_value = prompt_user()
-                closure_result = breaking_closure(inputted_value, attempt_count - i, p)
+                user_reply = prompt_user()
+                closure_result = breaking_closure(user_reply, attempt_count - i, p)
                 if not isinstance(closure_result, bool):
                     return closure_result
                 if closure_result:
-                    return inputted_value
+                    return user_reply
             else:
                 # ran out of attempts, proceed with failing case
                 return no_break_closure()
