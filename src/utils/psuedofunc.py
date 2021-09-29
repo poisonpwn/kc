@@ -41,6 +41,8 @@ class PsuedoFunc(type):
 
         # replace the function signature of the __init__ with that of __post_init__
         cls_init.__signature__ = post_init_sig
+        # change name to __init__ too
+        cls_init.__name__ = "__init__"
 
         # replace init with the newly formed one
         dct["__init__"] = cls_init
