@@ -54,6 +54,7 @@ test_keystore_schema = Dir(
             File,
         ),
     ),
+    Dir(),
     File,
     Symlink,
 )
