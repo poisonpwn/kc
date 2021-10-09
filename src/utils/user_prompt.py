@@ -15,11 +15,10 @@ because ABC does not use PsuedoFunc as it's metaclass
 because if a metaclass and inheritance is used together to create a class,
 all the bases of that class should be using that same metaclass (or subclass of that metaclass)
 for it's creation, since we have to use ABC which is created using the ABCMeta metaclass 
-and we have to use PsuedoFunc metaclass,
+and we have to use PsuedoFunc metaclass to create the PromptStrategy abstract class,
 
-to create the PromptStrategy abstract class we have to create a metaclass
-which inherits from both ABCMeta and PsuedoFunc, so that classes inheriting from
-PromptStrategy can also use PseudoFunc.
+we have to create a metaclass which inherits from both ABCMeta and PsuedoFunc, so that classes inheriting from
+PromptStrategy can also use PseudoFunc
 """
 
 
