@@ -48,65 +48,38 @@ class DirectoryTree(Node):
 
     """Algo for computing str of directory tree:
 
-        ### Step I -> Data Aggregation:
-        1)  check if the maximum recursion limit has been reached, the child tree will not be traversed.
-            instead, show_ellipses flag is set, so that a '...' is shown as child instead.
-            
-            if depth is 0, the is_root flag is set to True.
-        
-            if the recursion limit has not been reached, create a list of child nodes.
+    ### Step I -> Data Aggregation:
 
-        2) iterate through each node in current directory
+        ```
+        if depth is zero:
+            set is_root flag
 
-        3) check if node passes the predicate passed in to the function, 
-           if not, continue to next iteration, else, do the following:
+        if maximum recursion depth reached:
+            show ellipses instead of childnodes
+            by settng ellipses flag
+        else:
+            create empty child nodes list
+            for every directory or file (node) in current directory:
+                if node does not pass filter function:
+                    go to --NEXT-- node in in iteration
+                else:
+                    if node is a file:
+                        append File(node path) to child nodes list
+                    if node is a directory:
 
-           if node is file, create a File object from the node's path and append it
-           to the list of children.
+                        recursively call algorithm on node and 
+                        increment depth by one
 
-           if the node is a directory, recursively call this algorithm on that child directory,
-           if child directory's DirectoryTree object's list of children is not empty, append it to
-           the current list of child nodes.
+                        if node's child node's empty flag is set:
+                            append node and it's child nodes 
+                            list to current child nodes list
 
-        5)  after iterating through the current directory's contents, check if the 
-            list of child nodes is empty. if yes, then set the is_empty flag on the current directory,
-            delete the list of child nodes
+            if current child nodes list is still empty:
+                set empty flag
+                
+            --RETURN-- current directory object
+        ```
 
-        6)  return the DirectoryTree for current directory.
-
-
-        ### Step II -> Data Processing (String Computation):
-
-        1) create a list that contains each line of the output tree
-        2) if the current directory is the root of the tree we are computing,
-           append '\n<absolute path of root>' as the first line of the output list
-           (node_strings_list).
-
-           else, check the following:
-              if is_last flag passed in is true, then append '<prefix>└── <node path>' to the list
-              list.
-
-              if is_last is not true, then append '<prefix>├── <node path>' to the list.
-        3) if show_ellipses flag is set then, add ellipses as only child of tree and 
-           return the "".join() of the output list. else, continue with the following steps.
-        
-        4) set child_node_prefix as:
-            '<prefix><space>' if is_last is true
-            else '<prefix>│   ' if it is not
-
-        4) iterate through the current directory's child nodes, keeping in mind if the current node
-           is the last child or not using the is_last_child flag.
-
-        5) if node is a file, then call it's compute_str method using the child_node_prefix and
-           pass in the is_last_child as it's is_last named parameter, and append it's output str
-           to the output tree string list.
-        
-        6) if the node is a directory, recursively call compute_str on it passing in the 
-           child_prefix and the is_last_child flag as it's is_last named parameter, and
-           append it's output str to output tree string list.
-        
-        7) after iterating through the current directories children, "\n".join the output tree
-           string list and return the output.
     """
 
     def __init__(
@@ -121,13 +94,13 @@ class DirectoryTree(Node):
         self.is_empty: bool = False
         self.show_ellipses: bool = False
         filter_predicate = (
-            DirectoryTree.DEFAULT_FILTER_PREDICATE
+            self.DEFAULT_FILTER_PREDICATE
             if filter_predicate is None
             else filter_predicate
         )
         self.is_root: bool = depth == 0
 
-        if depth > DirectoryTree.MAX_RECURSE_DEPTH:
+        if depth > self.MAX_RECURSE_DEPTH:
             self.show_ellipses = True
             return
 
@@ -147,6 +120,50 @@ class DirectoryTree(Node):
             self.is_empty = True
             del self.child_nodes_list
 
+    """
+    ### Step II -> Data Processing (String Computation)
+        performed on the resultant list of data aggregation step:
+        
+        create list will contain every line of output string
+        
+        if is_root flag is set:
+            append absolute path of root as first line
+        
+        if is_last flag is set:
+            append '<current prefix><elbow><node_path>' to  list
+        else:
+            append '<current prefix><tee><node path>' to  list
+
+        if is_last is set:
+            child node prefix = current prefix + <space> 
+        else:
+            child node prefix = current prefix + <pipe>
+
+        if show_ellipses flag is set:
+            add File.ellipses() as only child and --RETURN-- joined string
+        else:
+            if is_last is set:
+                append '<prefix><space>' to list
+            else:
+                append '<prefix><pipe>' to list''
+        
+        for each file or directory (node) in current directory's child node list:
+            if current index is last:
+                set is_last_child flag to True
+            else:
+                set it to False
+                
+            if node is a file:
+                call it's compute str method with child_node_prefix
+                and is_last_child as parameters and append result to list
+
+            else if node is a directory:
+                recursively call this algorithm on current directory
+                and append result to output list
+        
+        --RETURN-- newline joined output list as str
+    """
+
     def compute_str(self, prefix=[], is_last=True):
         assert not self.is_empty, "can't compute string for empty dir"
 
@@ -156,16 +173,14 @@ class DirectoryTree(Node):
             curr_node_name = "".join(
                 prefix
                 + [
-                    DirectoryTree.elbow if is_last else DirectoryTree.tee,
+                    self.elbow if is_last else self.tee,
                     self.path.absolute().name,
                 ]
             )
 
         node_strings = [curr_node_name]
 
-        child_node_prefix = prefix + [
-            DirectoryTree.space if is_last else DirectoryTree.pipe
-        ]
+        child_node_prefix = prefix + [self.space if is_last else self.pipe]
 
         if self.show_ellipses:
             node_strings.append(File.show_ellipses(child_node_prefix))
