@@ -6,15 +6,17 @@ from typing import Union, Optional
 from abc import ABC, abstractmethod
 import click
 
+from exceptions import UnknownPassGenMethod
 
-class PasswordGenerator(ABC):
+
+class PasswdGenerationMethod(ABC):
     @staticmethod
     @abstractmethod
     def generate(*args, **kwargs) -> str:
         pass
 
 
-class RandomChars(PasswordGenerator):
+class RandomChars(PasswdGenerationMethod):
     SPECIAL_CHARS = r"&$%#@!*=+-\,.;:/?"
 
     @staticmethod
@@ -29,12 +31,12 @@ class RandomChars(PasswordGenerator):
 
         Args:
             size (int, optional): the length of the password. Defaults to 20.
-
-            digit_count (int, optional): no of digits to include in the password. Defaults to 3.
-
-            include_uppercase (bool, optional): whether to include the uppercase alphabet. Defaults to True.
-
-            special_char_count (int, optional): no of special charectars to include in the password. Defaults to 3.
+            digit_count (int, optional): no of digits to include in the
+              password. Defaults to 3.
+            include_uppercase (bool, optional): whether to include the uppercase alphabet.
+              Defaults to True.
+            special_char_count (int, optional): no of special charectars to include
+              in the password. Defaults to 3.
         """
         if size < 1:
             raise ValueError("size of password has to be a positive number!")
@@ -63,7 +65,7 @@ class RandomChars(PasswordGenerator):
         return "".join(passwd_char_list)
 
 
-class XKCD(PasswordGenerator):
+class XKCD(PasswdGenerationMethod):
     WORDLIST_DIR: Path = Path(__file__).parents[2].absolute()
     WORDLIST_FILE: Path = WORDLIST_DIR / "wordlist.txt"
     LINE_RANGE = (4, 7700)  # only words between these line numbers are chosen
@@ -82,17 +84,12 @@ class XKCD(PasswordGenerator):
 
         Args:
             no_of_words (int, optional): the number of words the password should contain. Defaults to 5.
-
             delim (str, optional): the delimeter to seperate each word with. Defaults to "-".
-
             include_size (bool, optional): whether to append the total size of the password to it
               including delimeters, except the delimeter seperating the size itself. Defaults to True.
-
             service_name (Optional[str], optional): if not None, service name will be used as the
               first word of the password. Defaults to None.
-
             should_capitalize_words (bool, optional): if True, every word in password will be capitalized. Defaults to False.
-
             word_len_range (Union[range, int], optional): [description]. Defaults to range(4, 10).
         """
 
@@ -136,7 +133,16 @@ class XKCD(PasswordGenerator):
         return delim.join(word_list)
 
 
-class PassGenFactory:
-    def __init__(self):
-        # TODO: implement dispatch to password generators
-        raise NotImplementedError
+class PasswdGeneneratorFactory:
+    passwd_generators = {
+        "xkcd": XKCD,
+        "random": RandomChars,
+    }
+
+    def __init__(self, generation_method):
+        try:
+            return self.passwd_generators[generation_method]
+        except KeyError:
+            raise UnknownPassGenMethod(
+                f"{generation_method} is not a valid password generation method."
+            )
