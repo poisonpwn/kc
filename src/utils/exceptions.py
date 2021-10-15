@@ -29,5 +29,5 @@ class InvalidPasswordError(Exception):
     """Error raised when password doesn't comply with criteria"""
 
 
-class UnknownPasswordGenerationMethod(Exception):
+class UnknownPassGenMethod(Exception):
     """Error raised when password generation is attempted with an unknown method"""
