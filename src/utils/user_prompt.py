@@ -17,8 +17,8 @@ all the bases of that class should be using that same metaclass (or subclass of 
 for it's creation, since we have to use ABC which is created using the ABCMeta metaclass 
 and we have to use PsuedoFunc metaclass to create the PromptStrategy abstract class,
 
-we have to create a metaclass which inherits from both ABCMeta and PsuedoFunc, so that classes inheriting from
-PromptStrategy can also use PseudoFunc
+we have to create a metaclass which inherits from both ABCMeta and PsuedoFunc, 
+so that classes inheriting from PromptStrategy can also use PseudoFunc
 """
 
 
