@@ -23,10 +23,27 @@ class File(Node):
     ellipses = " ..."
 
     @classmethod
-    def show_ellipses(cls, prefix):
+    def show_ellipses(cls, prefix) -> str:
+        """this shows an ellipses as only child of subtree, indicating
+        that the directory was too many levels deep to traverse.
+
+        Args:
+            prefix: the prefix to append the ellipses to
+
+        Returns:
+            str: the string representing the ellipses in the subtree.
+        """
         return "".join([*prefix, File.elbow, File.ellipses])
 
     def compute_str(self, prefix: List[str], is_last: bool) -> str:
+        """compute string for files with prefix appended to current file stem
+        if file is a symlink, an arrow is appended pointing to the real path.
+
+        Args:
+            prefix (List[str]): the prefix to append the filestem to
+            is_last (bool): whether the current file is last in current subtree
+              this shows an elbow intead of a tee to cap off the subtree.
+        """
         curr_node_name_list = prefix + [
             File.elbow if is_last else File.tee,
             self.path.stem,
@@ -48,9 +65,9 @@ class DirectoryTree(Node):
 
     """Algo for computing str of directory tree:
 
+
     ### Step I -> Data Aggregation:
 
-        ```
         if depth is zero:
             set is_root flag
 
@@ -148,10 +165,7 @@ class DirectoryTree(Node):
                 append '<prefix><pipe>' to list''
         
         for each file or directory (node) in current directory's child node list:
-            if current index is last:
-                set is_last_child flag to True
-            else:
-                set it to False
+            set is_last_child flag to (current index equal to last index) 
                 
             if node is a file:
                 call it's compute str method with child_node_prefix
