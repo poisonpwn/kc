@@ -27,7 +27,3 @@ class EmptyError(Exception):
 
 class InvalidPasswordError(Exception):
     """Error raised when password doesn't comply with criteria"""
-
-
-class UnknownPassGenMethod(Exception):
-    """Error raised when password generation is attempted with an unknown method"""
