@@ -19,12 +19,19 @@ class PasswdGenerationMethod(ABC):
 class RandomChars(PasswdGenerationMethod):
     SPECIAL_CHARS = r"&$%#@!*=+-\,.;:/?"
 
+    @click.command(name="random")
+    @click.option("--size", "-s", default=20)
+    @click.option("--include-uppercase/--no-include-uppercase", default=True)
+    @click.option("--digit-count", "-d", "digit_count", default=3)
+    @click.option("--no-digits", "digit_count", flag_value=0)
+    @click.option("--spchar-count", "-sc", "special_char_count", default=3)
+    @click.option("--no-spchar", "special_char_count", flag_value=0)
     @staticmethod
     def generate(
-        size: int = 20,
-        digit_count: int = 3,
-        include_uppercase: bool = True,
-        special_char_count: int = 3,
+        size: int,
+        include_uppercase: bool,
+        digit_count: int,
+        special_char_count: int,
     ) -> str:
         """generate a password consisting of a random string of characters with
         using the specified parameters
@@ -70,6 +77,18 @@ class XKCD(PasswdGenerationMethod):
     WORDLIST_FILE: Path = WORDLIST_DIR / "wordlist.txt"
     LINE_RANGE = (4, 7700)  # only words between these line numbers are chosen
 
+    @click.command(name="xkcd")
+    @click.option(
+        "--delim",
+        help="the delimter to put in between the words.",
+        default="-",
+    )
+    @click.option(
+        "--append-size/--no-append-size",
+        default=True,
+        help="whether to append the password length to the password.",
+    )
+    @click.option("--capitalize/-no-capitalize", default=True)
     @staticmethod
     def generate(
         no_of_words: int = 5,
@@ -79,9 +98,7 @@ class XKCD(PasswdGenerationMethod):
         should_capitalize_words: bool = False,
         word_len_range: Union[range, int] = range(4, 10),
     ) -> str:
-        """generates an xkcd style passphrase, like in
-        https://xkcd.com/936/
-
+        """generates an xkcd style passphrase, like in https://xkcd.com/936/
         Args:
             no_of_words (int, optional): the number of words the password should contain. Defaults to 5.
             delim (str, optional): the delimeter to seperate each word with. Defaults to "-".
@@ -131,18 +148,3 @@ class XKCD(PasswdGenerationMethod):
                 # * NOTE: the last delimeter before the length number is not counted in length
             )
         return delim.join(word_list)
-
-
-class PasswdGeneneratorFactory:
-    passwd_generators = {
-        "xkcd": XKCD,
-        "random": RandomChars,
-    }
-
-    def __init__(self, generation_method):
-        try:
-            return self.passwd_generators[generation_method]
-        except KeyError:
-            raise UnknownPassGenMethod(
-                f"{generation_method} is not a valid password generation method."
-            )
