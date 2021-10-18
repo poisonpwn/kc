@@ -27,9 +27,7 @@ class PassStore:
     KEY_FILE_EXT = "enc"
     DEFAULT_KEY_STORE_PATH: Final[Path] = Path.home() / ".password-store"
 
-    def __init__(
-        self, pass_store_path: Optional[Path] = None, should_create_keystore=True
-    ):
+    def __init__(self, pass_store_path: Optional[Path] = None):
         self.pass_store_path = pass_store_path
         if pass_store_path is None:
             # keystore was None so check in environment
@@ -41,7 +39,7 @@ class PassStore:
                 else Path(env_key_store_dir)
             )
 
-        if not self.pass_store_path.exists() and should_create_keystore:
+        if not self.pass_store_path.exists():
             os.makedirs(self.pass_store_path)
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
