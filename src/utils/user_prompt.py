@@ -143,6 +143,9 @@ class TTYAskUser(PromptStrategy, metaclass=PsuedoFunc):
             if mismatch_message is None
             else mismatch_message
         )
+        empty_message = (
+            TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
+        )
         while True:
             reply, confirm_reply = [
                 TTYAskUser(prompt, allow_empty, empty_message=empty_message)
@@ -180,6 +183,7 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
     def __post_init__(
         prompt: str,
         allow_empty=False,
+        *,
         empty_message: Optional[str] = None,
     ) -> str:
         empty_message = empty_message or PinentryAskUser.DEFAULT_EMPTY_MESSAGE
