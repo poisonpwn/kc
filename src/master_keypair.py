@@ -18,52 +18,49 @@ class MasterKeyPair:
         # all of these defaults to None because
         # argparse returns None when option is not specified
         self,
-        secret_key_file: Path,
-        public_key_file: Path,
+        secret_key_filepath: Path,
+        public_key_filepath: Path,
     ):
-        self.secret_key_file = secret_key_file.absolute()
-        self.public_key_file = public_key_file.absolute()
-
-        if self.secret_key_file.parent != self.public_key_file.parent:
-            raise InvalidFilenameErr("keyfiles must be under the same directory.")
-
-        if secret_key_file.name == "" or public_key_file.name == "":
+        if secret_key_filepath.name == "" or public_key_filepath.name == "":
             raise EmptyError("keyfile name's can't be empty!.")
 
-        if secret_key_file.suffix != MasterKeyPair.SECKEY_FILE_EXT:
+        if secret_key_filepath.suffix != MasterKeyPair.SECKEY_FILE_EXT:
             raise InvalidFilenameErr(
                 f"secret key file name has to have extension {MasterKeyPair.SECKEY_FILE_EXT}"
             )
 
-        if public_key_file.suffix != MasterKeyPair.PUBKEY_FILE_EXT:
+        if public_key_filepath.suffix != MasterKeyPair.PUBKEY_FILE_EXT:
             raise InvalidFilenameErr(
                 f"secret key file name has to have extension {MasterKeyPair.PUBKEY_FILE_EXT}"
             )
 
-        if self.secret_key_file == self.public_key_file:
+        self.secret_key_filepath = secret_key_filepath.resolve()
+        self.public_key_filepath = public_key_filepath.resolve()
+
+        if secret_key_filepath == public_key_filepath:
             raise SameKeyFileError(
-                self.secret_key_file,
+                self.secret_key_filepath,
                 "public key and secret key files can't be the same.",
             )
 
-        if not self.keypair_dir.exists():
-            self.keypair_dir.mkdir()
-
-    @property
-    def keypair_dir(self):
-        return self.secret_key_file.parent
+        if not self.secret_key_filepath.parent.exists():
+            self.secret_key_filepath.parent.mkdir()
+        if not self.public_key_filepath.parent.exists():
+            self.public_key_filepath.parent.mkdir()
 
     def generate_keypair(self, master_passwd: Optional[str] = None):
-        """
-        generates an NaCL keypair and writes to disk at self.keypair_dir location
+        """generates an NaCL keypair and writes to disk at self.keypair_dir location
         the secret key is symmetrically encrypted with master password provided by the user
         """
 
-        if self.secret_key_file.exists():
-            prompt_message = f"file {self.secret_key_file.name} ALREADY Exists in {self.keypair_dir}! Overwrite?"
+        overwrite = False
+        if self.secret_key_filepath.exists():
+            prompt_message = (
+                f"file {self.secret_key_filepath.name} ALREADY EXISTS! Overwrite?"
+            )
 
             try:
-                click.confirm(
+                overwrite = click.confirm(
                     prompt_message, default=False, show_default=True, abort=True
                 )
             except click.exceptions.Abort:
@@ -84,24 +81,20 @@ class MasterKeyPair:
         secret_box = KeySecretBox(master_passwd)
         encrypted_secret_key = secret_box.encrypt(secret_key.encode())
 
-        with open(self.secret_key_file, "wb") as secret_key_file:
+        with open(self.secret_key_filepath, "wb") as secret_key_file:
             # key derivation salt is appended to the user's secret key after the '|' symbol
             secret_key_file.write(bytes(encrypted_secret_key))
+            click.echo(f"secret key file written at {self.secret_key_filepath}")
 
-        try:
-            ## this should never run, this is just in case python's file equality
-            # checking messes up earlier which it shouldn't
-            if self.secret_key_file.samefile(self.public_key_file):
-                self.public_key_file = self.public_key_file.with_name(
-                    self.public_key_file.name + "__PUBLIC_KEY"
-                )
-                raise SameKeyFileError(
-                    self.secret_key_file,
-                    "public and private keyfiles can't be the same",
-                )
-        finally:
-            with open(self.public_key_file, "w") as public_key_file:
-                public_key_file.write(public_key.encode().hex())
+        if self.public_key_filepath.exists() and not overwrite:
+            click.echo(f"public key file ALREADY EXISTS at {self.public_key_filepath}!")
+            self.public_key_filepath = self.public_key_filepath.with_stem(
+                self.public_key_filepath.stem + "__PUBLIC_KEY"
+            )
+
+        with open(self.public_key_filepath, "wb") as public_key_file:
+            public_key_file.write(public_key.encode())
+        click.echo(f"public key file written at {self.public_key_filepath}")
 
     def get_secret_key(self, passwd: Optional[str] = None):
         """
@@ -110,11 +103,13 @@ class MasterKeyPair:
         Args:
             passwd (str): master password to be used for decrypting the secret key
         """
-        if not self.secret_key_file.exists():
-            click.echo(f"secret key does not exist in {self.keypair_dir}!", err=True)
+        if not self.secret_key_filepath.exists():
+            click.echo(
+                f"secret key does not exist in {self.secret_key_filepath}!", err=True
+            )
             exit()
 
-        with open(self.secret_key_file, "rb") as secret_key_file:
+        with open(self.secret_key_filepath, "rb") as secret_key_file:
             # the secret and the salt are seperated by a pipe i.e '|'
             # so partition to retrieve them
             encrypted_secret_key = PassEncryptedMessage.from_bytes(
@@ -131,7 +126,7 @@ class MasterKeyPair:
         # executes this function while there are attempts left
         def check_if_right_passwd(
             inputted_passwd: str,
-            attempts_left: int,
+            attempts_left: int,  # not including current attempt
             pyentry_instance: Optional[PynEntry],
         ):
             """
@@ -147,24 +142,27 @@ class MasterKeyPair:
 
             except CryptoError:
                 # user entered wrong password and decryption failed,
-                wrong_passwd_mesg = (
-                    f"Wrong Password! Try Again {attempts_left} tries left"
-                )
+                if attempts_left != 0:
+                    # current was not the last attempt, there are still attempts left.
+                    # so inform them of how many are left.
+                    wrong_passwd_mesg = (
+                        f"Wrong Password! Try Again, {attempts_left} tries left"
+                    )
 
-                if pyentry_instance is not None:
-                    # update the descsription and try again
-                    pyentry_instance.description = wrong_passwd_mesg
-                else:
-                    # if pynentry instance was none because user does not have pinentry
-                    # just echo the message and try again.
-                    click.echo(wrong_passwd_mesg, err=True)
+                    if pyentry_instance is not None:
+                        # update the descsription and try again
+                        pyentry_instance.description = wrong_passwd_mesg
+                    else:
+                        # if pynentry instance was none because user does not have pinentry
+                        # just echo the message and try again.
+                        click.echo(wrong_passwd_mesg, err=True)
 
                 # return False to run this function again on next attempt
                 return False
 
         # executes this when the user runs out of attempts
         def ran_out_of_attempts():
-            click.echo("Wrong Password!, you ran out of attempts!.", err=True)
+            click.echo("Wrong Password! Decryption Failed.", err=True)
             exit()
 
         return PrivateKey(
@@ -181,11 +179,11 @@ class MasterKeyPair:
         """
         retrieves the public key from disk at the `self.pubkey_file` location
         """
-        if not self.public_key_file.exists():
-            click.echo(f"can't find public key in {self.keypair_dir}")
+        if not self.public_key_filepath.exists():
+            click.echo(f"can't find public key at {self.public_key_filepath}")
             exit()
 
-        with open(self.public_key_file) as public_key_file:
+        with open(self.public_key_filepath) as public_key_file:
             return PublicKey(bytes.fromhex(public_key_file.read()))
 
     def change_master_password(
@@ -207,14 +205,14 @@ class MasterKeyPair:
         secret_box = KeySecretBox(new_passwd)
         encrypted_secret_key = secret_box.encrypt(secret_key.encode())
 
-        with open(self.secret_key_file, "wb") as f:
+        with open(self.secret_key_filepath, "wb") as f:
             f.write(bytes(encrypted_secret_key))
 
 
 if __name__ == "__main__":
     key_pair = MasterKeyPair(
-        Path.home() / ".keys/nacl_seckey.enc",
-        Path.home() / ".keys/nacl_pubkey.pub",
+        Path.home() / ".keys/some.enc",
+        Path.home() / ".keys/some.pub",
     )
     key_pair.generate_keypair()
     key_pair.change_master_password()
