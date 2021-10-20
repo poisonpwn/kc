@@ -109,7 +109,7 @@ class PassStore:
         print(dir_tree.compute_str())
 
 
-class PassFile:
+class PasswdFile:
     """represents a file containing a password
     which may or may not exist on disk yet
 
