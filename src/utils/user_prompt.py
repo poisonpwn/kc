@@ -1,7 +1,7 @@
 from pynentry import PynEntry, PinEntryCancelled, show_message
-from typing import Callable, Optional, Any, Type
+from typing import Callable, Optional, Any
 from .psuedofunc import PsuedoFunc
-from pwinput import pwinput
+from getpass import getpass
 from shutil import which
 from abc import abstractmethod, ABCMeta
 import sys
@@ -101,8 +101,18 @@ class PromptStrategy(metaclass=AbstractPsuedoFunc):
 
         Args:
             prompt (str): the message to prompt the user with
+
             breaking_closure (Callable[[str, int, Optional[PynEntry]], Any])
+              Args:
+                inputted_reply (str) is the current reply by the user
+                attempts_left (int) is the number of attempts
+                pynentry_instance (Optional[PynEntry]) if the user has pinentry installed,
+                    it is used, and the current instance is passed in as third arg.
+
             no_break_closure (Callable[[], Any])
+               called when no attempts are left for user,
+               takes no arguments.
+
             attempt_count (int, optional): No of Attempts the user has to enter
               the right password. Defaults to 3.
         """
@@ -122,8 +132,7 @@ class TTYAskUser(PromptStrategy, metaclass=PsuedoFunc):
         empty_message = (
             TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
         )
-        while True:
-            reply = pwinput(prompt)
+        while reply := getpass(prompt):
             if len(reply) == 0 and not allow_empty:
                 click.echo(empty_message)
             else:
@@ -188,8 +197,9 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
     ) -> str:
         empty_message = empty_message or PinentryAskUser.DEFAULT_EMPTY_MESSAGE
         with PynEntry() as p:
-            prompt_hook = PinentryAskUser.use_prompt(p, prompt)
-            while input_str := prompt_hook():
+            # vvvvvvvv this is a hook used for prompting the user exactly once
+            prompt_user = PinentryAskUser.use_prompt(p, prompt)
+            while input_str := prompt_user():
                 if input_str == "" and not allow_empty:
                     show_message(empty_message)
                 else:
@@ -252,14 +262,14 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
             else mismatch_message
         )
         with PynEntry() as p:
-            prompt_password = PinentryAskUser.use_prompt(p, prompt)
+            prompt_user = PinentryAskUser.use_prompt(p, prompt)
             while True:
-                passwd = prompt_password()
+                passwd = prompt_user()
                 if not passwd and not allow_empty:
                     show_message(empty_message)
                     continue
 
-                confirm_passwd = prompt_password(confirm_prompt)
+                confirm_passwd = prompt_user(confirm_prompt)
                 if passwd == confirm_passwd:
                     return passwd
                 show_message(mismatch_message)
@@ -273,9 +283,9 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
     ):
         with PynEntry() as p:
             prompt_user = PinentryAskUser.use_prompt(p, prompt)
-            for i in range(1, attempt_count + 1):
+            for current_attmpt_no in reversed(range(attempt_count + 1)):
                 user_reply = prompt_user()
-                closure_result = breaking_closure(user_reply, attempt_count - i, p)
+                closure_result = breaking_closure(user_reply, current_attmpt_no, p)
                 if not isinstance(closure_result, bool):
                     return closure_result
                 if closure_result:
@@ -285,4 +295,59 @@ class PinentryAskUser(PromptStrategy, metaclass=PsuedoFunc):
                 return no_break_closure()
 
 
-AskUser: Type[PromptStrategy] = PinentryAskUser if which("pinentry") else TTYAskUser
+class PipeAskUser(PromptStrategy, metaclass=PsuedoFunc):
+    def __post_init__(
+        prompt, allow_empty: bool = False, *, empty_message: Optional[str] = None
+    ):
+        del prompt
+        return PipeAskUser.__read_from_stdin(allow_empty, empty_message=empty_message)
+
+    # NOTE: the function signatures for __post_init__ and and_confirm are repeated
+    # so that the function *signatures* and documentation the same as that of the
+    # abstract class
+
+    def and_confirm(
+        prompt: str,
+        confirm_prompt="Confirm Password: ",
+        allow_empty: bool = False,
+        *,
+        mismatch_message: Optional[str] = None,
+        empty_message: Optional[str] = None,
+    ):
+        del mismatch_message, confirm_prompt
+        return PipeAskUser.__read_from_stdin(allow_empty, empty_message=empty_message)
+
+    def until(
+        prompt: str,
+        breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
+        no_break_closure: Callable[[], Any],
+        attempt_count: int = 3,
+    ):
+        del attempt_count
+        user_reply = PipeAskUser.__read_from_stdin()
+        closure_result = breaking_closure(user_reply, 0)
+        if not isinstance(closure_result, bool):
+            return closure_result
+        if closure_result:
+            return user_reply
+        return no_break_closure()
+
+    def __read_from_stdin(
+        allow_empty: bool = False,
+        *,
+        empty_message: Optional[str],
+    ):
+        empty_message = PipeAskUser.DEFAULT_EMPTY_MESSAGE
+        reply = sys.stdin.read().strip()
+        if reply == "" and not allow_empty:
+            click.echo(empty_message, err=True)
+            exit(1)
+        return reply
+
+
+if which("pinentry"):
+    AskUser = PinentryAskUser
+elif sys.__stdin__.isatty():
+    AskUser = TTYAskUser
+else:
+    AskUser = PipeAskUser
