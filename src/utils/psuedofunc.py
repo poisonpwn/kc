@@ -1,6 +1,5 @@
 from functools import update_wrapper
 from inspect import signature
-from .exceptions import PostInitNotFoundErr
 
 
 class PsuedoFunc(type):
@@ -24,7 +23,7 @@ class PsuedoFunc(type):
         cls_post_init = dct.get("__post_init__")
 
         if cls_post_init is None:
-            raise PostInitNotFoundErr(f"can't find __post_init__ in {name}")
+            raise NameError(f"can't find __post_init__ in {name}")
 
         if isinstance(cls_post_init, (staticmethod, classmethod)):
             cls_post_init = cls_post_init.__func__  # the actual function inside
