@@ -1,13 +1,12 @@
 from nacl.public import SealedBox, PrivateKey, PublicKey
 from utils.directory_tree import DirectoryTree
-from typing import Final, Optional
 from pathlib import Path
-from utils.exceptions import PassFileExistsErr, EmptyError
+from utils.exceptions import PasswdFileExistsErr, EmptyError
 import os
 import click
 
 
-class PassStore:
+class PasswdStore:
     """manages Create, Read, Update, Delete (CRUD) operations
     on the password database on disk. Each file in the database is
     in the form <service_name>.<passfile_ext>, extension used is defined
@@ -23,24 +22,19 @@ class PassStore:
           during init, if it doens't exist already
     """
 
-    KEY_STORE_DIR_ENV_VAR = "KEYSTORE_DIR"
-    KEY_FILE_EXT = "enc"
-    DEFAULT_KEY_STORE_PATH: Final[Path] = Path.home() / ".password-store"
+    PASSWD_STORE_DIR_ENV_VAR = "KC_PASSWORD_STORE"
+    PASSWD_FILE_EXT = "enc"
 
-    def __init__(self, pass_store_path: Optional[Path] = None):
-        self.pass_store_path = pass_store_path
-        if pass_store_path is None:
-            # keystore was None so check in environment
-            env_key_store_dir = os.environ.get(PassStore.KEY_STORE_DIR_ENV_VAR)
-            self.pass_store_path = (
-                PassStore.DEFAULT_KEY_STORE_PATH
-                if env_key_store_dir is None
-                # keystore was also not specified in environment
-                else Path(env_key_store_dir)
-            )
+    @staticmethod
+    def default_passwd_store_path():
+        password_store_parent = os.environ.get("XDG_DATA_HOME")
+        if password_store_parent is not None:
+            return Path(password_store_parent) / "kc-password-store"
+        return Path.home() / ".kc-password-store"
 
-        if not self.pass_store_path.exists():
-            os.makedirs(self.pass_store_path)
+    def __init__(self, pass_store_path: Path):
+        self.passwd_store_path = pass_store_path
+        self.passwd_store_path.mkdir(exist_ok=True, parents=True)
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
         """encrypt the password given and write it to disk at key store location
@@ -54,11 +48,11 @@ class PassStore:
             public_key (nacl.public.PublicKey): the public key to be
               used for encrypting the password
         """
-        pass_file = PassFile.from_service_name(service_name, self.pass_store_path)
+        passwd_file = PasswdFile.from_service_name(service_name, self.passwd_store_path)
         try:
-            pass_file.write_passwd(passwd, public_key)
-        except PassFileExistsErr:
-            prompt = f"the passfile {pass_file} already exists in {self.pass_store_path} Overwrite?"
+            passwd_file.write_passwd(passwd, public_key)
+        except PasswdFileExistsErr:
+            prompt = f"the passfile {passwd_file} already exists in {self.passwd_store_path} Overwrite?"
             try:
                 click.confirm(prompt, default=False, abort=True, show_default=True)
             except click.Abort:
@@ -78,8 +72,10 @@ class PassStore:
             str: decrypted password corresponding to the service name in the pass store
         """
         try:
-            pass_file = PassFile.from_service_name(service_name, self.pass_store_path)
-            return pass_file.retrieve_passwd(secret_key)
+            passwd_file = PasswdFile.from_service_name(
+                service_name, self.passwd_store_path
+            )
+            return passwd_file.retrieve_passwd(secret_key)
         except FileNotFoundError:
             click.echo(
                 f"password for {service_name} does not exist in pass store",
@@ -98,12 +94,12 @@ class PassStore:
         # include only those nodes themselves are key files or
         # is a directory which contains keyfiles somewhere in its tree
         tree_filter_predicate = lambda node: node.is_dir() or (
-            node.is_file() and node.suffix[1:] == PassStore.KEY_FILE_EXT
+            node.is_file() and node.suffix[1:] == PasswdStore.PASSWD_FILE_EXT
         )
 
-        dir_tree = DirectoryTree(self.pass_store_path, tree_filter_predicate)
+        dir_tree = DirectoryTree(self.passwd_store_path, tree_filter_predicate)
         if dir_tree.is_empty:
-            print(f"no keys in {self.pass_store_path.absolute()}")
+            print(f"no keys in {self.passwd_store_path.absolute()}")
             return
 
         print(dir_tree.compute_str())
@@ -117,11 +113,11 @@ class PasswdFile:
         path (str): path to the passfile
     """
 
-    def __init__(self, path):
+    def __init__(self, path: Path):
         self.path = path
 
     @classmethod
-    def from_service_name(cls, service_name, pass_store_path):
+    def from_service_name(cls, service_name, passwd_store_path):
         """create a PassFile instance from service name
         under the pass_store_path
 
@@ -138,7 +134,7 @@ class PasswdFile:
         if len(service_name) == 0:
             raise EmptyError("service name of password can't be empty!")
 
-        return cls(pass_store_path / f"{service_name}.{PassStore.KEY_FILE_EXT}")
+        return cls(passwd_store_path / f"{service_name}.{PasswdStore.PASSWD_FILE_EXT}")
 
     def retrieve_passwd(self, secret_key: PrivateKey) -> str:
         """retrieve and decrypt the key contained in the keyfile
@@ -148,14 +144,14 @@ class PasswdFile:
               to decrypt the passfile contents
 
         Raises:
-            FileNotFoundError: raised if the passfile doesn't exist on disk
+            FileNotFoundError: raised if the passwd file doesn't exist on disk
 
         Returns:
-            str: the decrypted password which the passfile contained
+            str: the decrypted password which the passwd file contained
         """
 
         if not self.path.exists():
-            raise FileNotFoundError(f"passfile doesn't exist at {self.path}")
+            raise FileNotFoundError(f"passwd file doesn't exist at {self.path}")
 
         with open(self.path, "rb") as f:
             encrypted_passwd_bytes = f.read()
@@ -177,7 +173,9 @@ class PasswdFile:
               be written to disk already exists.
         """
         if self.path.exists():
-            raise PassFileExistsErr(f"passfile already exists at location {self.path}")
+            raise PasswdFileExistsErr(
+                f"passfile already exists at location {self.path}"
+            )
 
         encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
 
