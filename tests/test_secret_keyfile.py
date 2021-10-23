@@ -27,9 +27,9 @@ def secret_keyfile(keyfile_parent_dir):
 def test_write_encrypted(
     secret_key: PrivateKey, secret_keyfile: SecretKeyFile, master_passwd: str
 ):
-    assert not secret_keyfile.path.exists()
+    assert not secret_keyfile.exists()
     secret_keyfile.write_encrypted(secret_key, master_passwd)
-    assert secret_keyfile.path.exists()
+    assert secret_keyfile.exists()
 
 
 def test_reterive_encrypted(
@@ -37,4 +37,4 @@ def test_reterive_encrypted(
 ):
     decrypted_secret_key = secret_keyfile.retrieve(master_passwd)
     assert decrypted_secret_key == secret_key
-    secret_keyfile.path.unlink()
+    secret_keyfile.unlink()

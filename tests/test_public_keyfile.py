@@ -25,13 +25,13 @@ def public_keyfile(keyfile_parent_dir):
 
 
 def test_write(public_key, public_keyfile: PublicKeyFile):
-    assert not public_keyfile.path.exists()
+    assert not public_keyfile.exists()
     public_keyfile.write(public_key)
-    assert public_keyfile.path.exists()
+    assert public_keyfile.exists()
 
 
 @pytest.mark.run(after="test_write")
 def test_read(public_key, public_keyfile: PublicKeyFile):
     read_public_key = public_keyfile.retrieve()
     assert read_public_key == public_key
-    public_keyfile.path.unlink()
+    public_keyfile.unlink()

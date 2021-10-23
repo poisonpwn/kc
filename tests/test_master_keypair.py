@@ -19,18 +19,18 @@ def master_keypair(tmp_path_factory):
 
     yield master_keypair
 
-    master_keypair.secret_keyfile.path.unlink()
-    master_keypair.public_keyfile.path.unlink()
+    master_keypair.secret_keyfile.unlink()
+    master_keypair.public_keyfile.unlink()
 
 
 def test_generate_keypair(master_keypair: MasterKeyPair, master_passwd: str):
-    assert not master_keypair.public_keyfile.path.exists()
-    assert not master_keypair.public_keyfile.path.exists()
+    assert not master_keypair.public_keyfile.exists()
+    assert not master_keypair.public_keyfile.exists()
 
     master_keypair.generate_keypair(master_passwd)
 
-    assert master_keypair.public_keyfile.path.exists()
-    assert master_keypair.public_keyfile.path.exists()
+    assert master_keypair.public_keyfile.exists()
+    assert master_keypair.public_keyfile.exists()
 
 
 @pytest.mark.run(after="test_generate_keypair")
