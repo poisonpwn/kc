@@ -3,6 +3,7 @@ from utils.directory_tree import DirectoryTree
 from pathlib import Path
 from utils.exceptions import PasswdFileExistsErr, EmptyError
 import os
+from utils.keyfiles import KeyFile
 import click
 
 
@@ -23,7 +24,6 @@ class PasswdStore:
     """
 
     PASSWD_STORE_DIR_ENV_VAR = "KC_PASSWORD_STORE"
-    PASSWD_FILE_EXT = "enc"
 
     @staticmethod
     def default_passwd_store_path():
@@ -94,7 +94,7 @@ class PasswdStore:
         # include only those nodes themselves are key files or
         # is a directory which contains keyfiles somewhere in its tree
         tree_filter_predicate = lambda node: node.is_dir() or (
-            node.is_file() and node.suffix[1:] == PasswdStore.PASSWD_FILE_EXT
+            node.is_file() and node.suffix == PasswdStore.PASSWD_FILE_EXT
         )
 
         dir_tree = DirectoryTree(self.passwd_store_path, tree_filter_predicate)
@@ -105,21 +105,15 @@ class PasswdStore:
         print(dir_tree.compute_str())
 
 
-class PasswdFile:
+class PasswdFile(KeyFile):
     """represents a file containing a password
     which may or may not exist on disk yet
-
-    Args:
-        path (str): path to the passfile
     """
-
-    def __init__(self, path: Path):
-        self.path = path
 
     @classmethod
     def from_service_name(cls, service_name, passwd_store_path):
-        """create a PassFile instance from service name
-        under the pass_store_path
+        """create a PassFile instance with filestem `service_name`
+        under the `passwd_store_path`
 
         Args:
             service_name (str): the service the password is for,
@@ -134,10 +128,10 @@ class PasswdFile:
         if len(service_name) == 0:
             raise EmptyError("service name of password can't be empty!")
 
-        return cls(passwd_store_path / f"{service_name}.{PasswdStore.PASSWD_FILE_EXT}")
+        return cls(passwd_store_path / f"{service_name}{PasswdStore.PASSWD_FILE_EXT}")
 
     def retrieve_passwd(self, secret_key: PrivateKey) -> str:
-        """retrieve and decrypt the key contained in the keyfile
+        """retrieve and decrypt the password contained in the keyfile
 
         Args:
             secret_key (PrivateKey): the secret key that should be used
@@ -145,15 +139,12 @@ class PasswdFile:
 
         Raises:
             FileNotFoundError: raised if the passwd file doesn't exist on disk
-
-        Returns:
-            str: the decrypted password which the passwd file contained
         """
 
-        if not self.path.exists():
-            raise FileNotFoundError(f"passwd file doesn't exist at {self.path}")
+        if not self.exists():
+            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
 
-        with open(self.path, "rb") as f:
+        with open(self, "rb") as f:
             encrypted_passwd_bytes = f.read()
 
         decrypted_passwd_bytes = SealedBox(secret_key).decrypt(encrypted_passwd_bytes)
@@ -172,12 +163,10 @@ class PasswdFile:
             PassFileExistsErr: raised when the passfile attempted to
               be written to disk already exists.
         """
-        if self.path.exists():
-            raise PasswdFileExistsErr(
-                f"passfile already exists at location {self.path}"
-            )
+        if self.exists():
+            raise PasswdFileExistsErr(f"passfile already exists at location {self}")
 
         encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
 
-        with open(self.path, "wb") as f:
+        with open(self, "wb") as f:
             f.write(encrypted_passwd_bytes)

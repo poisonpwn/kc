@@ -29,15 +29,15 @@ passwd = "M0Ms_-Sp46h377i"
 
 @pytest.mark.run(before="test_passwd_write")
 def test_nonexistant_read(pass_file: PasswdFile, secret_key):
-    assert not pass_file.path.exists()
+    assert not pass_file.exists()
     with pytest.raises(FileNotFoundError):
         pass_file.retrieve_passwd(secret_key)
 
 
 def test_passwd_write(pass_file: PasswdFile, public_key):
-    assert not pass_file.path.exists()
+    assert not pass_file.exists()
     pass_file.write_passwd(passwd, public_key)
-    assert pass_file.path.exists()
+    assert pass_file.exists()
     with pytest.raises(PasswdFileExistsErr):
         pass_file.write_passwd(passwd, public_key)
 
