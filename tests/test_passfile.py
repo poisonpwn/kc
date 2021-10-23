@@ -1,9 +1,9 @@
-import pytest
-from pass_store import PasswdFile
+from utils.keyfiles import PasswdFile
 from utils.exceptions import EmptyError
 from utils.exceptions import PasswdFileExistsErr
 from pathlib import Path
 import shutil
+import pytest
 
 
 @pytest.fixture(autouse=True, scope="module")

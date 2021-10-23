@@ -1,21 +1,20 @@
-from .exceptions import InvalidFilenameErr
+from .exceptions import InvalidFilenameErr, PasswdFileExistsErr, EmptyError
 from .crypto import KeySecretBox, PassEncryptedMessage
-from nacl.public import PrivateKey, PublicKey
+from nacl.public import PrivateKey, PublicKey, SealedBox
 from functools import cached_property
 from pathlib import Path
 import click
 
 
-class KeyFile(Path):
+class File(Path):
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs).absolute()
-        self.__init__(*args, **kwargs)
         return self
 
     _flavour = type(Path())._flavour
 
 
-class PublicKeyFile(KeyFile):
+class PublicKeyFile(File):
     """a file which contains the public key of a keypair"""
 
     PUBKEY_FILE_EXT = ".pub"
@@ -64,7 +63,7 @@ class PublicKeyFile(KeyFile):
             return PublicKey(public_key_file.read())
 
 
-class SecretKeyFile(KeyFile):
+class SecretKeyFile(File):
     """a file which contains the private key of a keypair"""
 
     SECKEY_FILE_EXT = ".enc"
@@ -125,6 +124,85 @@ class SecretKeyFile(KeyFile):
         return PrivateKey(
             secret_box.decrypt_message(self.encrypted_file_bytes, master_passwd)
         )
+
+
+class PasswdFile(File):
+    """represents a file containing a password
+    which may or may not exist on disk yet
+    """
+
+    PASSWD_FILE_EXT = ".enc"
+
+    def __init__(self, *args, **kwargs):
+        if self.suffix is None:
+            raise InvalidFilenameErr(
+                f"passwd file can't have empty extension, extension required: {self.PASSWD_FILE_EXT}"
+            )
+        elif self.suffix != self.PASSWD_FILE_EXT:
+            raise InvalidFilenameErr(
+                f"passwd has to have extension {self.PASSWD_FILE_EXT}, not {self.suffix}"
+            )
+
+    @classmethod
+    def from_service_name(cls, service_name, passwd_store_path):
+        """create a PassFile instance with filestem `service_name`
+        under the `passwd_store_path`
+
+        Args:
+            service_name (str): the service the password is for,
+              this will become the filestem of the passfile.
+
+            pass_store_path (pathlib.Path): the pass_store_path directory
+              under which the passfile is to be placed.
+
+        Raises:
+            EmptyError: raised when service name is empty
+        """
+        if len(service_name) == 0:
+            raise EmptyError("service name of password can't be empty!")
+
+        return cls(passwd_store_path / f"{service_name}{cls.PASSWD_FILE_EXT}")
+
+    def retrieve_passwd(self, secret_key: PrivateKey) -> str:
+        """retrieve and decrypt the password contained in the keyfile
+
+        Args:
+            secret_key (PrivateKey): the secret key that should be used
+              to decrypt the passfile contents
+
+        Raises:
+            FileNotFoundError: raised if the passwd file doesn't exist on disk
+        """
+
+        if not self.exists():
+            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
+
+        with open(self, "rb") as f:
+            encrypted_passwd_bytes = f.read()
+
+        decrypted_passwd_bytes = SealedBox(secret_key).decrypt(encrypted_passwd_bytes)
+
+        return decrypted_passwd_bytes.decode("utf-8")
+
+    def write_passwd(self, passwd: str, public_key: PublicKey):
+        """encrypt and write the passfile to disk
+
+        Args:
+            key (str): the key to enter into the keystore
+
+            public_key (PublicKey):  the public key to be used to encrypt the key with
+
+        Raises:
+            PassFileExistsErr: raised when the passfile attempted to
+              be written to disk already exists.
+        """
+        if self.exists():
+            raise PasswdFileExistsErr(f"passfile already exists at location {self}")
+
+        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
+
+        with open(self, "wb") as f:
+            f.write(encrypted_passwd_bytes)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,10 @@
-from nacl.public import SealedBox, PrivateKey, PublicKey
 from utils.directory_tree import DirectoryTree
+from utils.exceptions import PasswdFileExistsErr
+from utils.keyfiles import PasswdFile
+from nacl.public import PrivateKey, PublicKey
 from pathlib import Path
-from utils.exceptions import PasswdFileExistsErr, EmptyError
-import os
-from utils.keyfiles import KeyFile
 import click
+import os
 
 
 class PasswdStore:
@@ -17,11 +17,7 @@ class PasswdStore:
         pass_store_path (pathlib.Path): the path to the directory
           which is the root of the pass_store. if None, use
           default pass_store_path defined by PassStore.DEFAULT_KEY_STORE_PATH .
-          Defaults to None
-
-        should_create_keystore (bool): whether to create the pass store root dir
-          during init, if it doens't exist already
-    """
+          Defaults to None"""
 
     PASSWD_STORE_DIR_ENV_VAR = "KC_PASSWORD_STORE"
 
@@ -103,70 +99,3 @@ class PasswdStore:
             return
 
         print(dir_tree.compute_str())
-
-
-class PasswdFile(KeyFile):
-    """represents a file containing a password
-    which may or may not exist on disk yet
-    """
-
-    @classmethod
-    def from_service_name(cls, service_name, passwd_store_path):
-        """create a PassFile instance with filestem `service_name`
-        under the `passwd_store_path`
-
-        Args:
-            service_name (str): the service the password is for,
-              this will become the filestem of the passfile.
-
-            pass_store_path (pathlib.Path): the pass_store_path directory
-              under which the passfile is to be placed.
-
-        Raises:
-            EmptyError: raised when service name is empty
-        """
-        if len(service_name) == 0:
-            raise EmptyError("service name of password can't be empty!")
-
-        return cls(passwd_store_path / f"{service_name}{PasswdStore.PASSWD_FILE_EXT}")
-
-    def retrieve_passwd(self, secret_key: PrivateKey) -> str:
-        """retrieve and decrypt the password contained in the keyfile
-
-        Args:
-            secret_key (PrivateKey): the secret key that should be used
-              to decrypt the passfile contents
-
-        Raises:
-            FileNotFoundError: raised if the passwd file doesn't exist on disk
-        """
-
-        if not self.exists():
-            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
-
-        with open(self, "rb") as f:
-            encrypted_passwd_bytes = f.read()
-
-        decrypted_passwd_bytes = SealedBox(secret_key).decrypt(encrypted_passwd_bytes)
-
-        return decrypted_passwd_bytes.decode("utf-8")
-
-    def write_passwd(self, passwd: str, public_key: PublicKey):
-        """encrypt and write the passfile to disk
-
-        Args:
-            key (str): the key to enter into the keystore
-
-            public_key (PublicKey):  the public key to be used to encrypt the key with
-
-        Raises:
-            PassFileExistsErr: raised when the passfile attempted to
-              be written to disk already exists.
-        """
-        if self.exists():
-            raise PasswdFileExistsErr(f"passfile already exists at location {self}")
-
-        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
-
-        with open(self, "wb") as f:
-            f.write(encrypted_passwd_bytes)
