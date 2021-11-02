@@ -1,4 +1,4 @@
-from utils.user_prompt import AskUser
+from utils.user_prompt import AskPasswd
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from nacl.public import PrivateKey
 from nacl.exceptions import CryptoError
@@ -40,7 +40,7 @@ class MasterKeyPair:
             raise EmptyError("master password can't be empty!")
 
         if master_passwd is None:
-            master_passwd = AskUser.and_confirm(
+            master_passwd = AskPasswd.and_confirm(
                 "Enter a master password: ", allow_empty=False
             )
 
@@ -71,7 +71,7 @@ class MasterKeyPair:
 
         ## this returns the secret key bytes if the user provides the right password
         ## else it will abort
-        return AskUser.until(
+        return AskPasswd.until(
             self.MASTER_PASSWD_PROMPT,
             self.__check_if_right_passwd,
             self.__ran_out_of_attempts,
@@ -130,7 +130,7 @@ class MasterKeyPair:
 
         plaintext_secret_key = self.get_secret_key(old_passwd)
         if new_passwd is None:
-            new_passwd = AskUser.and_confirm(
+            new_passwd = AskPasswd.and_confirm(
                 self.NEW_MASTER_PASSWD_PROMPT, allow_empty=False
             )
         self.secret_keyfile.write_encrypted(
