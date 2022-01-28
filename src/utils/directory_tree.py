@@ -110,7 +110,7 @@ class DirectoryTree(Node):
 
         self.is_empty: bool = False
         self.show_ellipses: bool = False
-        filter_predicate = (
+        filter_predicate: Callable[[Path], bool] = (
             self.DEFAULT_FILTER_PREDICATE
             if filter_predicate is None
             else filter_predicate
@@ -157,7 +157,8 @@ class DirectoryTree(Node):
             child node prefix = current prefix + <pipe>
 
         if show_ellipses flag is set:
-            add File.ellipses() as only child and --RETURN-- joined string
+            add File.ellipses() as only child 
+            #* --RETURN-- joined string
         else:
             if is_last is set:
                 append '<prefix><space>' to list
@@ -175,7 +176,7 @@ class DirectoryTree(Node):
                 recursively call this algorithm on current directory
                 and append result to output list
         
-        --RETURN-- newline joined output list as str
+        #* --RETURN-- newline joined output list as str
     """
 
     def compute_str(self, prefix=[], is_last=True):

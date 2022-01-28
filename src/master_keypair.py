@@ -17,8 +17,6 @@ class MasterKeyPair:
     PASSWD_CHANGED_MESG = "Password Changed"
 
     def __init__(
-        # all of these defaults to None because
-        # argparse returns None when option is not specified
         self,
         secret_keyfile: SecretKeyFile,
         public_keyfile: PublicKeyFile,
@@ -32,7 +30,7 @@ class MasterKeyPair:
         *,
         should_confirm_overwrite: bool = True,
     ):
-        """generates an NaCL keypair and writes to disk at self.keypair_dir location
+        """generates an NaCl keypair and writes to disk at self.keypair_dir location
         the secret key is symmetrically encrypted with master password provided by the user
         """
 
@@ -73,11 +71,11 @@ class MasterKeyPair:
         ## else it will abort
         return AskPasswd.until(
             self.MASTER_PASSWD_PROMPT,
-            self.__check_if_right_passwd,
+            self.__check_if_right_passwd,  # will return bytes if successful
             self.__ran_out_of_attempts,
         )
 
-    # executes this function while there are attempts left
+    # executes this callback while there are attempts left
     def __check_if_right_passwd(
         self,
         inputted_passwd: str,
@@ -111,7 +109,7 @@ class MasterKeyPair:
             # return False to run this function again on next attempt
             return False
 
-    # closure executes this when the user runs out of attempts
+    # execute this callback when attemtps are exhausted
     def __ran_out_of_attempts(self):
         click.echo(self.DECRYPTION_FAILED_MESG, err=True)
         exit()
@@ -133,6 +131,7 @@ class MasterKeyPair:
             new_passwd = AskPasswd.and_confirm(
                 self.NEW_MASTER_PASSWD_PROMPT, allow_empty=False
             )
+
         self.secret_keyfile.write_encrypted(
             plaintext_secret_key,
             new_passwd,
