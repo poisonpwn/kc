@@ -7,7 +7,8 @@ import pytest
 @pytest.mark.parametrize(
     "filename",
     [
-        ".enc" "no_file_ext",
+        ".enc",
+        "no_file_ext",
         "empty_file_ext.",
         "wrong_file_ext.pub",
         "wrong_file_ext.gg",
@@ -28,7 +29,9 @@ def test_write_encrypted(
     secret_key: PrivateKey, secret_keyfile: SecretKeyFile, master_passwd: str
 ):
     assert not secret_keyfile.exists()
-    secret_keyfile.write_encrypted(secret_key, master_passwd)
+    secret_keyfile.write_encrypted(
+        secret_key, master_passwd, should_print_write_mesg=False
+    )
     assert secret_keyfile.exists()
 
 
