@@ -29,6 +29,7 @@ class MasterKeyPair:
         master_passwd: Optional[str] = None,
         *,
         should_confirm_overwrite: bool = True,
+        should_print_write_mesg: bool = True,
     ):
         """generates an NaCl keypair and writes to disk at self.keypair_dir location
         the secret key is symmetrically encrypted with master password provided by the user
@@ -46,10 +47,15 @@ class MasterKeyPair:
         public_key = secret_key.public_key
 
         self.secret_keyfile.write_encrypted(
-            secret_key, master_passwd, should_confirm_overwrite=should_confirm_overwrite
+            secret_key,
+            master_passwd,
+            should_confirm_overwrite=should_confirm_overwrite,
+            should_print_write_mesg=should_print_write_mesg,
         )
         self.public_keyfile.write(
-            public_key, should_confirm_overwrite=should_confirm_overwrite
+            public_key,
+            should_confirm_overwrite=should_confirm_overwrite,
+            should_print_write_mesg=should_print_write_mesg,
         )
 
     def get_secret_key(self, passwd: Optional[str] = None):

@@ -27,7 +27,7 @@ def test_generate_keypair(master_keypair: MasterKeyPair, master_passwd: str):
     assert not master_keypair.public_keyfile.exists()
     assert not master_keypair.public_keyfile.exists()
 
-    master_keypair.generate_keypair(master_passwd)
+    master_keypair.generate_keypair(master_passwd, should_print_write_mesg=False)
 
     assert master_keypair.public_keyfile.exists()
     assert master_keypair.public_keyfile.exists()
