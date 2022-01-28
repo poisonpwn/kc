@@ -1,55 +1,102 @@
 from master_keypair import MasterKeyPair
-from pass_store import PassStore
-from utils.user_prompt import AskUser
-from pathlib import Path
+from pass_store import PasswdStore
+from utils.user_prompt import AskPasswd
+from utils.keyfiles import PublicKeyFile, SecretKeyFile, PasswdFile
 import click
 
-key_store_dir = Path.home() / ".password-store"
-master_key_pair = MasterKeyPair(
-    Path.home() / ".keys/nacl_seckey.enc",
-    Path.home() / ".keys/nacl_pubkey.pub",
+
+@click.group()
+@click.option(
+    "--password-store",
+    "passwd_store_path",
+    envvar=PasswdStore.PASSWD_STORE_DIR_ENV_VAR,
+    type=click.Path(dir_okay=True, readable=True, writable=True),
+    default=PasswdStore.DEFAULT_LOCATION,
 )
-keystore = PassStore(key_store_dir)
+@click.option(
+    "--secret-key",
+    "secret_key_path",
+    type=click.Path(file_okay=True, readable=True),
+    default=SecretKeyFile.DEFAULT_LOCATION,
+)
+@click.option(
+    "--public_key",
+    "public_key_path",
+    type=click.Path(file_okay=True, readable=True),
+    default=PublicKeyFile.DEFAULT_LOCATION,
+)
+@click.pass_context
+def cli(
+    ctx,
+    passwd_store_path,
+    public_key_path,
+    secret_key_path,
+):
+    obj = {
+        "MASTER_KEYPAIR": MasterKeyPair(
+            SecretKeyFile(secret_key_path),
+            PublicKeyFile(public_key_path),
+        ),
+        "PASSWD_STORE": PasswdStore(passwd_store_path),
+    }
+    ctx.obj = obj
 
 
-@click.command()
-@click.argument("service_name", required=True)
-@click.argument("--allow-empty", is_flag=True)
-@click.argument("--stdin", "from_stdin", is_flag=True)
-def insert_passwd(service_name: str, allow_empty: bool, from_stdin: bool):
-    public_key = master_key_pair.get_public_key()
-    if from_stdin:
-        # TODO implement piping password from stdin
-        raise NotImplementedError
+@cli.command()
+@click.argument("service_name")
+@click.option("--allow-empty", is_flag=True, help="allow the password to be empty")
+@click.option("-p", "--password", "passwd", required=False)
+@click.pass_obj
+def add(obj, service_name: str, allow_empty: bool, passwd):
+    public_key = obj["MASTER_KEYPAIR"].get_public_key()
+    if passwd == "-":
+        passwd = click.get_text_stream("stdin").readline().rstrip()
     else:
-        passwd = AskUser("Enter Password: ", allow_empty=allow_empty)  # type: ignore
+        passwd = AskPasswd("Enter Password: ", allow_empty=allow_empty)  # type: ignore
+    obj["PASSWD_STORE"].insert_passwd(service_name, passwd, public_key)  # type: ignore
 
-    keystore.insert_passwd(service_name, passwd, public_key)  # type: ignore
 
-
-@click.command()
+@cli.command(name="get")
 @click.argument("service_name", required=True)
-@click.option("--stdin", "master_password_from_stdin", is_flag=True)
-def retrieve_password(service_name, master_passwd_from_stdin: bool = False):
-    if master_passwd_from_stdin:
-        # TODO implement passing master password from stdin
-        raise NotImplementedError
-
-    secret_key = master_key_pair.get_secret_key()
-    return keystore.retrieve_passwd(service_name, secret_key)
-
-
-@click.command("--stdin", "from_stdin", is_flag=True)
-def generate_keypair(from_stdin: bool):
-    master_passwd = None
-    if from_stdin:
-        # TODO implement passing password through stdin
-        ## master_passwd = password from stdin
+@click.option(
+    "--print/--no-print",
+    "should_print",
+    is_flag=True,
+    help="print the result to console",
+    default=False,
+)
+@click.option(
+    "--copy/--no-copy",
+    "should_copy",
+    default=True,
+    is_flag=True,
+    help="copy the password to clipboard",
+)
+@click.pass_obj
+def retrieve_password(obj, service_name, should_print, should_copy):
+    get_secret_key_callback = obj["MASTER_KEYPAIR"].get_secret_key
+    passwd = obj["PASSWD_STORE"].retrieve_passwd(service_name, get_secret_key_callback)
+    if should_print:
+        click.echo(passwd)
+    if should_copy:
         pass
-    master_key_pair.generate_keypair(master_passwd)
 
 
-@click.command(name="list")
-def list_keystore():
-    PassStore.KEY_FILE_EXT = "gpg"
-    keystore.print_tree()
+@cli.command(name="generate")
+@click.pass_obj
+def generate_keypair(obj):
+    obj["MASTER_KEYPAIR"].generate_keypair()
+
+
+@cli.command()
+@click.argument("service_name")
+@click.confirmation_option(prompt="Are you sure you want to remove the password?")
+@click.pass_obj
+def remove(obj, service_name: str):
+    obj["PASSWD_STORE"].remove_passwd(service_name)
+
+
+@cli.command(name="list")
+@click.pass_obj
+def list_keystore(obj):
+    obj["PASSWD_STORE"].print_tree()
