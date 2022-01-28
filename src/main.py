@@ -49,10 +49,10 @@ def cli(
 @click.pass_obj
 def add(obj, service_name: str, allow_empty: bool, passwd):
     public_key = obj["MASTER_KEYPAIR"].get_public_key()
-    if passwd == "-":
-        passwd = click.get_text_stream("stdin").readline().rstrip()
-    else:
+    if passwd is None:
         passwd = AskPasswd("Enter Password: ", allow_empty=allow_empty)  # type: ignore
+    elif passwd == "-":
+        passwd = click.get_text_stream("stdin").readline().rstrip()
     obj["PASSWD_STORE"].insert_passwd(service_name, passwd, public_key)  # type: ignore
 
 
