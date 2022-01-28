@@ -44,5 +44,6 @@ def test_passwd_write(pass_file: PasswdFile, public_key):
 
 @pytest.mark.run(after="test_passwd_write")
 def test_password_read(pass_file: PasswdFile, secret_key):
-    decrpyted_passwd = pass_file.retrieve_passwd(secret_key)
+    get_secret_key_callback = lambda: secret_key
+    decrpyted_passwd = pass_file.retrieve_passwd(get_secret_key_callback)
     assert decrpyted_passwd == passwd
