@@ -3,22 +3,33 @@ from .crypto import KeySecretBox, PassEncryptedMessage
 from nacl.public import PrivateKey, PublicKey, SealedBox
 from functools import cached_property
 from pathlib import Path
+from typing import Callable
+import os
 import click
 
 
-class File(Path):
+def get_home_dir():
+    if (home_dir := os.environ.get("XDG_DATA_HOME")) is not None:
+        return Path(home_dir)
+    return Path.home()
+
+
+class KeyFile(Path):
     def __new__(cls, *args, **kwargs):
         self = super().__new__(cls, *args, **kwargs).absolute()
         return self
 
     _flavour = type(Path())._flavour
+    DEFAULT_PARENT_DIR = get_home_dir() / ".kc_keys"
 
 
-class PublicKeyFile(File):
+class PublicKeyFile(KeyFile):
     """a file which contains the public key of a keypair"""
 
     PUBKEY_FILE_EXT = ".pub"
+    DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_pubkey{PUBKEY_FILE_EXT}"
 
+    # args and kwargs required for __new__
     def __init__(self, *args, **kwargs):
         if self.suffix != self.PUBKEY_FILE_EXT:
             raise InvalidFilenameErr(
@@ -63,15 +74,16 @@ class PublicKeyFile(File):
             return PublicKey(public_key_file.read())
 
 
-class SecretKeyFile(File):
+class SecretKeyFile(KeyFile):
     """a file which contains the private key of a keypair"""
 
     SECKEY_FILE_EXT = ".enc"
+    DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_seckey{SECKEY_FILE_EXT}"
 
     def __init__(self, *args, **kwargs):
         if self.suffix != self.SECKEY_FILE_EXT:
             raise InvalidFilenameErr(
-                f"secret key file name has to have extension {self.SECKEY_FILE_EXT}"
+                f"secret key file name has to have extension {self.SECKEY_FILE_EXT} but receieved {self}"
             )
 
     # this property is cached because it will be run again and again
@@ -120,13 +132,12 @@ class SecretKeyFile(File):
 
     def retrieve(self, master_passwd: str):
         secret_box = KeySecretBox(master_passwd)
-
         return PrivateKey(
             secret_box.decrypt_message(self.encrypted_file_bytes, master_passwd)
         )
 
 
-class PasswdFile(File):
+class PasswdFile(KeyFile):
     """represents a file containing a password
     which may or may not exist on disk yet
     """
@@ -163,12 +174,11 @@ class PasswdFile(File):
 
         return cls(passwd_store_path / f"{service_name}{cls.PASSWD_FILE_EXT}")
 
-    def retrieve_passwd(self, secret_key: PrivateKey) -> str:
+    def retrieve_passwd(self, get_secret_key_callback) -> str:
         """retrieve and decrypt the password contained in the keyfile
 
         Args:
-            secret_key (PrivateKey): the secret key that should be used
-              to decrypt the passfile contents
+            secret_key (PrivateKey): secret key used to decrypt the passwd file
 
         Raises:
             FileNotFoundError: raised if the passwd file doesn't exist on disk
@@ -177,6 +187,7 @@ class PasswdFile(File):
         if not self.exists():
             raise FileNotFoundError(f"passwd file doesn't exist at {self}")
 
+        secret_key = get_secret_key_callback()
         with open(self, "rb") as f:
             encrypted_passwd_bytes = f.read()
 
@@ -207,5 +218,5 @@ class PasswdFile(File):
 
 if __name__ == "__main__":
     a = PublicKeyFile(Path.home() / "something.pub")
-    a.write(b"someshit")
+    a.write(b"something")
     print(a)

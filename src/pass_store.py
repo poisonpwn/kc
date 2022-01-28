@@ -1,10 +1,11 @@
 from utils.directory_tree import DirectoryTree
 from utils.exceptions import PasswdFileExistsErr
-from utils.keyfiles import PasswdFile
+from utils.keyfiles import PasswdFile, get_home_dir
 from nacl.public import PrivateKey, PublicKey
+from functools import partial
 from pathlib import Path
+from typing import Callable
 import click
-import os
 
 
 class PasswdStore:
@@ -20,17 +21,19 @@ class PasswdStore:
           Defaults to None"""
 
     PASSWD_STORE_DIR_ENV_VAR = "KC_PASSWORD_STORE"
+    DEFAULT_LOCATION = get_home_dir() / ".kc-passwd-store"
 
-    @staticmethod
-    def default_passwd_store_path():
-        password_store_parent = os.environ.get("XDG_DATA_HOME")
-        if password_store_parent is not None:
-            return Path(password_store_parent) / "kc-password-store"
-        return Path.home() / ".kc-password-store"
+    def __init__(self, passwd_store_path: Path):
+        self.passwd_store_path = passwd_store_path
 
-    def __init__(self, pass_store_path: Path):
-        self.passwd_store_path = pass_store_path
+        # create if it doesn't exist
         self.passwd_store_path.mkdir(exist_ok=True, parents=True)
+
+        # create a passwd file factory function that creates a passwd file instance
+        # which is located inside the passwd store directory
+        self.passwd_file_factory = partial(
+            PasswdFile.from_service_name, passwd_store_path=passwd_store_path
+        )
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
         """encrypt the password given and write it to disk at key store location
@@ -44,7 +47,7 @@ class PasswdStore:
             public_key (nacl.public.PublicKey): the public key to be
               used for encrypting the password
         """
-        passwd_file = PasswdFile.from_service_name(service_name, self.passwd_store_path)
+        passwd_file = self.passwd_file_factory(service_name)
         try:
             passwd_file.write_passwd(passwd, public_key)
         except PasswdFileExistsErr:
@@ -55,7 +58,27 @@ class PasswdStore:
                 click.echo("Aborting...")
                 exit()
 
-    def retrieve_passwd(self, service_name: str, secret_key: PrivateKey) -> str:
+    def remove_passwd(self, service_name: str):
+        """remove password corresponding to the service name.
+
+        Args:
+            service_name (str): service name associated with password
+              that is to be removed
+            should_confirm (bool, optional): confirm before removing
+              the password. Defaults to True.
+        """
+        passwd_file = self.passwd_file_factory(service_name)
+        try:
+            passwd_file.unlink()
+        except FileNotFoundError:
+            click.echo(
+                f"password for {service_name} does not exist in keystore", err=True
+            )
+            exit()
+
+    def retrieve_passwd(
+        self, service_name: str, get_secret_key_callback: Callable[..., PrivateKey]
+    ) -> str:
         """return the decrypted password from the keystore
 
         Args:
@@ -68,10 +91,8 @@ class PasswdStore:
             str: decrypted password corresponding to the service name in the pass store
         """
         try:
-            passwd_file = PasswdFile.from_service_name(
-                service_name, self.passwd_store_path
-            )
-            return passwd_file.retrieve_passwd(secret_key)
+            passwd_file = self.passwd_file_factory(service_name)
+            return passwd_file.retrieve_passwd(get_secret_key_callback)
         except FileNotFoundError:
             click.echo(
                 f"password for {service_name} does not exist in pass store",
@@ -90,12 +111,12 @@ class PasswdStore:
         # include only those nodes themselves are key files or
         # is a directory which contains keyfiles somewhere in its tree
         tree_filter_predicate = lambda node: node.is_dir() or (
-            node.is_file() and node.suffix == PasswdStore.PASSWD_FILE_EXT
+            node.is_file() and node.suffix == PasswdFile.PASSWD_FILE_EXT
         )
 
         dir_tree = DirectoryTree(self.passwd_store_path, tree_filter_predicate)
         if dir_tree.is_empty:
-            print(f"no keys in {self.passwd_store_path.absolute()}")
+            click.echo(f"no keys in {self.passwd_store_path.absolute()}")
             return
 
-        print(dir_tree.compute_str())
+        click.echo(dir_tree.compute_str())
