@@ -4,7 +4,6 @@ from .psuedofunc import PsuedoFunc
 from getpass import getpass
 from shutil import which
 from abc import abstractmethod, ABCMeta
-from functools import wraps
 import sys
 import click
 
@@ -122,69 +121,8 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
         )
 
 
-class PipeAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
-    def __post_init__(
-        prompt, allow_empty: bool = False, *, empty_message: Optional[str] = None
-    ):
-        del prompt
-        return PipeAskUser.__read_from_stdin(allow_empty, empty_message=empty_message)
-
-    # NOTE: the function signatures for __post_init__ and and_confirm are repeated
-    # so that the function *signatures* and documentation the same as that of the
-    # abstract class
-
-    def and_confirm(
-        prompt: str,
-        confirm_prompt="Confirm Password: ",
-        allow_empty: bool = False,
-        *,
-        mismatch_message: Optional[str] = None,
-        empty_message: Optional[str] = None,
-    ):
-        del mismatch_message, confirm_prompt
-        return PipeAskUser.__read_from_stdin(allow_empty, empty_message=empty_message)
-
-    def until(
-        prompt: str,
-        breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
-        no_break_closure: Callable[[], Any],
-        attempt_count: int = 3,
-    ):
-        del attempt_count
-        user_reply = PipeAskUser.__read_from_stdin()
-        closure_result = breaking_closure(user_reply, 0)
-        if not isinstance(closure_result, bool):
-            return closure_result
-        if closure_result:
-            return user_reply
-        return no_break_closure()
-
-    def __read_from_stdin(
-        allow_empty: bool = False,
-        *,
-        empty_message: Optional[str],
-    ):
-        empty_message = PipeAskUser.DEFAULT_EMPTY_MESSAGE
-        reply = sys.stdin.read().strip()
-        if reply == "" and not allow_empty:
-            click.echo(empty_message, err=True)
-            exit(1)
-        return reply
-
-    @classmethod
-    def fallback_stdin(cls, func):
-        @wraps(func)
-        def wrapped(*args, use_stdin: bool = False, **kwargs):
-            if use_stdin:
-                return getattr(cls, func.__name__)(*args, **kwargs)
-            return func(*args, **kwargs)
-
-        return wrapped
-
-
 class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def __post_init__(
         prompt: str,
         allow_empty: bool = False,
@@ -201,7 +139,6 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 return reply
 
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def and_confirm(
         prompt: str,
         confirm_prompt="Confirm Password: ",
@@ -228,7 +165,6 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
             click.echo(mismatch_message)
 
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def until(
         prompt: str,
         breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
@@ -253,7 +189,6 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
 
 class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def __post_init__(
         prompt: str,
         allow_empty=False,
@@ -271,7 +206,6 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                     return input_str
 
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def use_prompt(
         pynentry_instance: PynEntry, prompt: str
     ) -> Callable[[Optional[str]], str]:
@@ -304,12 +238,11 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 sys.stderr.write("operation cancelled! Abort!\n")
                 sys.exit()
             pynentry_instance.prompt = old_prompt
-            return passwd
+            return "" if passwd is None else passwd
 
         return _prompt_user
 
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def and_confirm(
         prompt: str,
         confirm_prompt="Confirm Password: ",
@@ -342,7 +275,6 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 show_message(mismatch_message)
 
     @staticmethod
-    @PipeAskUser.fallback_stdin
     def until(
         prompt: str,
         breaking_closure: Callable[[str, int, Optional[PynEntry]], Any],
@@ -363,16 +295,10 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 return no_break_closure()
 
 
-if which("entry"):
+if which("pinentry"):
     AskPasswd = PinentryAskUser
-elif sys.__stdin__.isatty():
-    AskPasswd = TTYAskUser
 else:
-    click.echo(
-        """Unable to Read Input!
-        stdin is not attached to tty and pipe is not specified.""",
-        err=True,
-    )
-    exit(1)
+    AskPasswd = TTYAskUser
 
-print(TTYAskUser())
+if __name__ == "__main__":
+    print(AskPasswd("Enter password: "))
