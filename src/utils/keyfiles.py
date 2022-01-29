@@ -19,6 +19,7 @@ class KeyFile(Path):
         self = super().__new__(cls, *args, **kwargs).absolute()
         return self
 
+    # type(Path()) is necessary because path returns different type in __new__
     _flavour = type(Path())._flavour
     DEFAULT_PARENT_DIR = get_home_dir() / ".kc_keys"
 
@@ -30,6 +31,7 @@ class PublicKeyFile(KeyFile):
     DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_pubkey{PUBKEY_FILE_EXT}"
 
     # args and kwargs required for __new__
+    # don't call super().__init__(*args, **kwargs) here
     def __init__(self, *args, **kwargs):
         if self.suffix != self.PUBKEY_FILE_EXT:
             raise InvalidFilenameErr(
@@ -87,7 +89,8 @@ class SecretKeyFile(KeyFile):
             )
 
     # this property is cached because it will be run again and again
-    # while checking if the password was correct, but the file contents won't change
+    # while checking if the password was correct,
+    # but the file contents wont change.
     @cached_property
     def encrypted_file_bytes(self):
         if not self.exists():
@@ -124,6 +127,7 @@ class SecretKeyFile(KeyFile):
         with open(self, "wb") as secret_key_file:
             secret_key_file.write(bytes(encrypted_secret_key))
 
+        # clear the cached encrypted bytes
         if hasattr(self, "encrypted_file_bytes"):
             del self.encrypted_file_bytes
 
@@ -155,7 +159,7 @@ class PasswdFile(KeyFile):
             )
 
     @classmethod
-    def from_service_name(cls, service_name, passwd_store_path):
+    def from_service_name(cls, service_name: str, passwd_store_path: Path):
         """create a PassFile instance with filestem `service_name`
         under the `passwd_store_path`
 
@@ -163,7 +167,7 @@ class PasswdFile(KeyFile):
             service_name (str): the service the password is for,
               this will become the filestem of the passfile.
 
-            pass_store_path (pathlib.Path): the pass_store_path directory
+            passwd_store_path (pathlib.Path): the passwd_store_path directory
               under which the passfile is to be placed.
 
         Raises:
@@ -174,7 +178,7 @@ class PasswdFile(KeyFile):
 
         return cls(passwd_store_path / f"{service_name}{cls.PASSWD_FILE_EXT}")
 
-    def retrieve_passwd(self, get_secret_key_callback) -> str:
+    def retrieve_passwd(self, get_secret_key_callback: Callable[[], PrivateKey]) -> str:
         """retrieve and decrypt the password contained in the keyfile
 
         Args:
