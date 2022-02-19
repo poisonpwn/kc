@@ -1,14 +1,12 @@
+from .exceptions import InvalidFilenameErr, PasswdFileExistsErr, EmptyError
+from .crypto import KeySecretBox, PassEncryptedMessage
+from .misc import get_home_dir
+from nacl.public import PrivateKey, PublicKey, SealedBox
 from functools import cached_property
 from pathlib import Path
 from typing import Callable
-
-import click
-from nacl.public import PrivateKey, PublicKey, SealedBox
 from pathvalidate import sanitize_filepath
-
-from .crypto import KeySecretBox, PassEncryptedMessage
-from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr
-from .misc import get_home_dir
+import click
 
 
 class KeyFile(Path):
@@ -74,7 +72,7 @@ class PublicKeyFile(KeyFile):
 
 
 class SecretKeyFile(KeyFile):
-    """a file which contains the private key of a keypair"""
+    """a file which contains the private key of a keypair."""
 
     SECKEY_FILE_EXT = ".enc"
     DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_seckey{SECKEY_FILE_EXT}"
@@ -182,6 +180,11 @@ class PasswdFile(KeyFile):
         )
         return cls(passwd_store_path / service_name)
 
+    def alias(self, destination_path: Path):
+        if not self.exists():
+            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
+        destination_path.parent.mkdir(exist_ok=True, parents=True)
+        destination_path.symlink_to(self, target_is_directory=False)
 
     def retrieve_passwd(self, get_secret_key_callback: Callable[[], PrivateKey]) -> str:
         """retrieve and decrypt the password contained in the keyfile
@@ -199,7 +202,6 @@ class PasswdFile(KeyFile):
         secret_key = get_secret_key_callback()
         with open(self, "rb") as f:
             encrypted_passwd_bytes = f.read()
-
         decrypted_passwd_bytes = SealedBox(secret_key).decrypt(encrypted_passwd_bytes)
 
         return decrypted_passwd_bytes.decode("utf-8")
@@ -218,14 +220,8 @@ class PasswdFile(KeyFile):
         """
         if self.exists():
             raise PasswdFileExistsErr(f"passfile already exists at location {self}")
-
         encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
-
+        # make the parent directory in case of passwords which are organized. eg. 'alt/google'
+        self.parent.mkdir(parents=True, exist_ok=True)
         with open(self, "wb") as f:
             f.write(encrypted_passwd_bytes)
-
-
-if __name__ == "__main__":
-    a = PublicKeyFile(Path.home() / "something.pub")
-    a.write(b"something")
-    print(a)
