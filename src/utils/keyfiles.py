@@ -173,7 +173,15 @@ class PasswdFile(KeyFile):
         if len(service_name) == 0:
             raise EmptyError("service name of password can't be empty!")
 
-        return cls(passwd_store_path / f"{service_name}{cls.PASSWD_FILE_EXT}")
+        filesys_root = Path("").absolute().root
+        service_name: Path = sanitize_filepath(
+            Path(filesys_root, service_name), platform="auto"
+        )
+        service_name = service_name.with_suffix(cls.PASSWD_FILE_EXT).relative_to(
+            filesys_root
+        )
+        return cls(passwd_store_path / service_name)
+
 
     def retrieve_passwd(self, get_secret_key_callback: Callable[[], PrivateKey]) -> str:
         """retrieve and decrypt the password contained in the keyfile
