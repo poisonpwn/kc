@@ -15,7 +15,7 @@ class PasswdStore:
     by PassStore.KEY_FILE_EXT
 
     Args:
-        pass_store_path (pathlib.Path): the path to the directory
+        passwd_store_path (pathlib.Path): the path to the directory
           which is the root of the pass_store. if None, use
           default pass_store_path defined by PassStore.DEFAULT_KEY_STORE_PATH .
           Defaults to None"""
@@ -34,6 +34,22 @@ class PasswdStore:
         self.passwd_file_factory = partial(
             PasswdFile.from_service_name, passwd_store_path=passwd_store_path
         )
+
+    def alias(self, source_service_name, dest_service_name):
+        """symlink file to another place in passwd_store
+
+        Args:
+            source_service_name (str): service name of passwd to alias
+            dest_service_name (str): destination service name
+        """
+        source = self.passwd_file_factory(source_service_name)
+        dest = self.passwd_file_factory(dest_service_name)
+        try:
+            source.alias(dest)
+        except FileNotFoundError:
+            click.echo(
+                f"{source.with_suffix('').relative_to(self.passwd_store_path)} does not exist in in passwd store ({self.passwd_store_path})"
+            )
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
         """encrypt the password given and write it to disk at key store location
