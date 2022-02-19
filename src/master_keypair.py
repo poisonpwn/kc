@@ -1,13 +1,15 @@
-from utils.user_prompt import AskPasswd
-from utils.keyfiles import PublicKeyFile, SecretKeyFile
-from nacl.public import PrivateKey
-from nacl.exceptions import CryptoError
-from pynentry import PynEntry
-from utils.exceptions import EmptyError
 from pathlib import Path
-from typing import Optional
 from sys import exit
+from typing import Optional
+
 import click
+from nacl.exceptions import CryptoError
+from nacl.public import PrivateKey
+from pynentry import PynEntry
+
+from utils.exceptions import EmptyError
+from utils.keyfiles import PublicKeyFile, SecretKeyFile
+from utils.user_prompt import AskPasswd
 
 
 class MasterKeyPair:
@@ -73,8 +75,8 @@ class MasterKeyPair:
                 click.echo(self.DECRYPTION_FAILED_MESG, err=True)
                 exit(1)
 
-        ## this returns the secret key bytes if the user provides the right password
-        ## else it will abort
+        # this returns the secret key bytes if the user provides the right password
+        # else it will abort
         return AskPasswd.until(
             self.MASTER_PASSWD_PROMPT,
             self.__check_if_right_passwd,  # will return bytes if successful

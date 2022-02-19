@@ -47,8 +47,11 @@ class PasswdStore:
         try:
             source.alias(dest)
         except FileNotFoundError:
+            service_name_no_ext = source.with_suffix("").relative_to(
+                self.passwd_store_path
+            )
             click.echo(
-                f"{source.with_suffix('').relative_to(self.passwd_store_path)} does not exist in in passwd store ({self.passwd_store_path})"
+                f"{service_name_no_ext} does not exist in in passwd store ({self.passwd_store_path})"
             )
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
