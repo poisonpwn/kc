@@ -1,17 +1,14 @@
-from .exceptions import InvalidFilenameErr, PasswdFileExistsErr, EmptyError
-from .crypto import KeySecretBox, PassEncryptedMessage
-from nacl.public import PrivateKey, PublicKey, SealedBox
 from functools import cached_property
 from pathlib import Path
 from typing import Callable
-import os
+
 import click
+from nacl.public import PrivateKey, PublicKey, SealedBox
+from pathvalidate import sanitize_filepath
 
-
-def get_home_dir():
-    if (home_dir := os.environ.get("XDG_DATA_HOME")) is not None:
-        return Path(home_dir)
-    return Path.home()
+from .crypto import KeySecretBox, PassEncryptedMessage
+from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr
+from .misc import get_home_dir
 
 
 class KeyFile(Path):
