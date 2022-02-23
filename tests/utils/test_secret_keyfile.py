@@ -38,6 +38,8 @@ def test_write_encrypted(
 def test_reterive_encrypted(
     secret_key: PrivateKey, secret_keyfile: SecretKeyFile, master_passwd
 ):
+    assert secret_keyfile.exists()
     decrypted_secret_key = secret_keyfile.retrieve(master_passwd)
     assert decrypted_secret_key == secret_key
-    secret_keyfile.unlink()
+    # NOTE: keyfiles get deleted when the whole keyfiles
+    # directory gets nuked in conftest.py after yield
