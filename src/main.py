@@ -6,7 +6,9 @@ import click
 
 from master_keypair import MasterKeyPair
 from pass_store import PasswdStore
+from sys import exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
+from utils.exceptions import Exit
 from utils.user_prompt import AskPasswd
 from utils.misc import get_default_value_from_env
 
@@ -15,6 +17,18 @@ from utils.misc import get_default_value_from_env
 class KcStateObj:
     master_keypair: MasterKeyPair
     passwd_store: PasswdStore
+
+
+class exit_if_raised:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            return
+        if exc_type is not Exit:
+            raise
+        exit(exc_value.error_code)
 
 
 @click.group()
@@ -47,14 +61,14 @@ def cli(
     public_key_path,
     secret_key_path,
 ):
-
-    ctx.obj = KcStateObj(
-        master_keypair=MasterKeyPair(
-            SecretKeyFile(secret_key_path),
-            PublicKeyFile(public_key_path),
-        ),
-        passwd_store=PasswdStore(passwd_store_path),
-    )
+    with exit_if_raised():
+        ctx.obj = KcStateObj(
+            master_keypair=MasterKeyPair(
+                SecretKeyFile(secret_key_path),
+                PublicKeyFile(public_key_path),
+            ),
+            passwd_store=PasswdStore(passwd_store_path),
+        )
 
 
 @cli.command()
@@ -63,12 +77,13 @@ def cli(
 @click.option("-p", "--password", "passwd", required=False)
 @click.pass_obj
 def add(obj: KcStateObj, service_name: str, allow_empty: bool, passwd: str):
-    public_key = obj.master_keypair.get_public_key()
-    if passwd is None:
-        passwd = AskPasswd("Enter Password: ", allow_empty=allow_empty)  # type: ignore
-    elif passwd == "-":
-        passwd = click.get_text_stream("stdin").readline().rstrip()
-    obj.passwd_store.insert_passwd(service_name, passwd, public_key)  # type: ignore
+    with exit_if_raised():
+        public_key = obj.master_keypair.get_public_key()
+        if passwd is None:
+            passwd = AskPasswd("Enter Password: ", allow_empty=allow_empty)  # type: ignore
+        elif passwd == "-":
+            passwd = click.get_text_stream("stdin").readline().rstrip()
+        obj.passwd_store.insert_passwd(service_name, passwd, public_key)  # type: ignore
 
 
 @cli.command(name="get")
@@ -93,32 +108,34 @@ def add(obj: KcStateObj, service_name: str, allow_empty: bool, passwd: str):
 def retrieve_password(
     obj: KcStateObj, service_name: str, should_print: bool, should_copy: bool
 ):
-    get_secret_key_callback = obj.master_keypair.get_secret_key
-    passwd = obj.passwd_store.retrieve_passwd(service_name, get_secret_key_callback)
-    if should_print:
-        click.echo(passwd)
-    if not should_copy:
-        return
+    with exit_if_raised():
+        get_secret_key_callback = obj.master_keypair.get_secret_key
+        passwd = obj.passwd_store.retrieve_passwd(service_name, get_secret_key_callback)
+        if should_print:
+            click.echo(passwd)
+        if not should_copy:
+            return
 
-    import pyperclip
-    from daemon import DaemonContext
+        import pyperclip
+        from daemon import DaemonContext
 
-    clipboard_contents = pyperclip.paste()
-    daemon_ctx = DaemonContext(detach_process=True)
-    daemon_ctx.passwd = passwd
-    daemon_ctx.clipboard_contents = (
-        clipboard_contents if clipboard_contents is not None else ""
-    )
-    with daemon_ctx as ctx:
-        pyperclip.copy(ctx.passwd)
-        sleep(21)
-        pyperclip.copy(ctx.clipboard_contents)
+        clipboard_contents = pyperclip.paste()
+        daemon_ctx = DaemonContext(detach_process=True)
+        daemon_ctx.passwd = passwd
+        daemon_ctx.clipboard_contents = (
+            clipboard_contents if clipboard_contents is not None else ""
+        )
+        with daemon_ctx as ctx:
+            pyperclip.copy(ctx.passwd)
+            sleep(21)
+            pyperclip.copy(ctx.clipboard_contents)
 
 
 @cli.command(name="generate")
 @click.pass_obj
 def generate_keypair(obj: KcStateObj):
-    obj.master_keypair.generate_keypair()
+    with exit_if_raised():
+        obj.master_keypair.generate_keypair()
 
 
 @cli.command()
@@ -126,13 +143,15 @@ def generate_keypair(obj: KcStateObj):
 @click.confirmation_option(prompt="Are you sure you want to remove the password?")
 @click.pass_obj
 def remove(obj: KcStateObj, service_name: str):
-    obj.passwd_store.remove_passwd(service_name)
+    with exit_if_raised():
+        obj.passwd_store.remove_passwd(service_name)
 
 
 @cli.command(name="list")
 @click.pass_obj
 def list_keystore(obj: KcStateObj):
-    obj.passwd_store.print_tree()
+    with exit_if_raised():
+        obj.passwd_store.print_tree()
 
 
 @cli.command("alias")
@@ -140,4 +159,5 @@ def list_keystore(obj: KcStateObj):
 @click.argument("destination_service_name")
 @click.pass_obj
 def alias(obj: KcStateObj, source_service_name: str, destination_service_name: str):
-    obj.passwd_store.alias(source_service_name, destination_service_name)
+    with exit_if_raised():
+        obj.passwd_store.alias(source_service_name, destination_service_name)

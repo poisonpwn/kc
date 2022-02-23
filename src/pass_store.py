@@ -53,6 +53,7 @@ class PasswdStore:
             click.echo(
                 f"{service_name_no_ext} does not exist in in passwd store ({self.passwd_store_path})"
             )
+            raise Exit()
 
     def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
         """encrypt the password given and write it to disk at key store location
