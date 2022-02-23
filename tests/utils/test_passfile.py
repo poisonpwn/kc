@@ -7,15 +7,21 @@ import pytest
 
 
 @pytest.fixture(autouse=True, scope="module")
-def passfile_parent(tmp_path_factory):
+def passfile_parent(tmp_path_factory) -> Path:
     parent_dir: Path = tmp_path_factory.mktemp("passfile_parent")
     yield parent_dir
     shutil.rmtree(parent_dir)
 
 
-def test_empty_filename():
+def test_empty_service_name(passfile_parent):
     with pytest.raises(EmptyError):
         PasswdFile.from_service_name("", passfile_parent)
+
+
+def test_malicious_service_name(passfile_parent: Path):
+    malicious_service_name = "nested_folder/../../../../service_name"
+    passwd_file = PasswdFile.from_service_name(malicious_service_name, passfile_parent)
+    assert passwd_file.with_suffix("") == passfile_parent / "service_name"
 
 
 @pytest.fixture(autouse=True, scope="module")
