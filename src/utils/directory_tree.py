@@ -84,16 +84,16 @@ class DirectoryTree(Node):
                         append File(node path) to child nodes list
                     if node is a directory:
 
-                        recursively call algorithm on node and 
+                        recursively call algorithm on node and
                         increment depth by one
 
                         if node's child node's empty flag is set:
-                            append node and it's child nodes 
+                            append node and it's child nodes
                             list to current child nodes list
 
             if current child nodes list is still empty:
                 set empty flag
-                
+
             --RETURN-- current directory object
         ```
 
@@ -140,34 +140,34 @@ class DirectoryTree(Node):
     """
     ### Step II -> Data Processing (String Computation)
         performed on the resultant list of data aggregation step:
-        
+
         create list will contain every line of output string
-        
+
         if is_root flag is set:
             append absolute path of root as first line
-        
+
         if is_last flag is set:
             append '<current prefix><elbow><node_path>' to  list
         else:
             append '<current prefix><tee><node path>' to  list
 
         if is_last is set:
-            child node prefix = current prefix + <space> 
+            child node prefix = current prefix + <space>
         else:
             child node prefix = current prefix + <pipe>
 
         if show_ellipses flag is set:
-            add File.ellipses() as only child 
+            add File.ellipses() as only child
             #* --RETURN-- joined string
         else:
             if is_last is set:
                 append '<prefix><space>' to list
             else:
                 append '<prefix><pipe>' to list''
-        
+
         for each file or directory (node) in current directory's child node list:
-            set is_last_child flag to (current index equal to last index) 
-                
+            set is_last_child flag to (current index equal to last index)
+
             if node is a file:
                 call it's compute str method with child_node_prefix
                 and is_last_child as parameters and append result to list
@@ -175,7 +175,7 @@ class DirectoryTree(Node):
             else if node is a directory:
                 recursively call this algorithm on current directory
                 and append result to output list
-        
+
         #* --RETURN-- newline joined output list as str
     """
 
