@@ -19,10 +19,19 @@ def test_empty_service_name(passfile_parent):
         PasswdFile.from_service_name("", passfile_parent)
 
 
-def test_malicious_service_name(passfile_parent: Path):
-    malicious_service_name = "nested_folder/../../../../service_name"
+@pytest.mark.parametrize(
+    "malicious_service_name_pair",
+    [
+        ("nested_folder/../../../../test_service_name_0", "test_service_name_0"),
+        ("../test_service_name_1", "test_service_name_1"),
+    ],
+)
+def test_malicious_service_name(
+    malicious_service_name_pair: str, passfile_parent: Path
+):
+    malicious_service_name, resolved_service_name = malicious_service_name_pair
     passwd_file = PasswdFile.from_service_name(malicious_service_name, passfile_parent)
-    assert passwd_file.with_suffix("") == passfile_parent / "service_name"
+    assert passwd_file.with_suffix("") == passfile_parent / resolved_service_name
 
 
 @pytest.fixture(autouse=True, scope="module")
@@ -33,7 +42,13 @@ def pass_file(passfile_parent, service_name="service_name"):
 
 
 passwd = "M0Ms_-Sp46h377i"
-tmp_alias_path_tails = ["parent_folder/nested_service_name.ext", "something.ext"]
+
+
+@pytest.fixture(params=["parent_folder/nested_service_name.ext", "something.ext"])
+def tmp_alias_dest_path(passfile_parent: Path, request):
+    path = passfile_parent / request.param
+    yield path
+    path.unlink(missing_ok=True)
 
 
 @pytest.mark.run(before="test_passwd_write")
@@ -48,16 +63,8 @@ def test_nonexistant_read(
 
 
 @pytest.mark.run(before="test_passwd_write")
-@pytest.mark.parametrize("tmp_alias_dest_path_tail", tmp_alias_path_tails)
-def test_alias_nonexistant_source(
-    pass_file: PasswdFile,
-    passfile_parent: Path,
-    tmp_alias_dest_path_tail: str,
-):
+def test_alias_nonexistant_source(pass_file: PasswdFile, tmp_alias_dest_path: Path):
     assert not pass_file.exists()
-    tmp_alias_dest_path = (
-        passfile_parent / tmp_alias_dest_path_tail
-    )  # can't be made fixture cause of test ordering and parametrization
     with pytest.raises(FileNotFoundError):
         pass_file.alias(tmp_alias_dest_path)
     assert not tmp_alias_dest_path.exists()
@@ -80,12 +87,8 @@ def test_password_read(pass_file: PasswdFile, secret_key):
 
 
 @pytest.mark.run(after="test_passwd_write")
-@pytest.mark.parametrize("tmp_alias_dest_path_tail", tmp_alias_path_tails)
-def test_alias(
-    pass_file: PasswdFile, passfile_parent: Path, tmp_alias_dest_path_tail: str
-):
+def test_alias(pass_file: PasswdFile, tmp_alias_dest_path: Path):
     assert pass_file.exists()
-    tmp_alias_dest_path = passfile_parent / tmp_alias_dest_path_tail
     pass_file.alias(tmp_alias_dest_path)
     assert tmp_alias_dest_path.exists()
     assert tmp_alias_dest_path.is_symlink()
