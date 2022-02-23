@@ -1,11 +1,14 @@
-from pynentry import PynEntry, PinEntryCancelled, show_message
-from typing import Callable, Optional, Any
-from .psuedofunc import PsuedoFunc
+import sys
+from abc import ABCMeta, abstractmethod
 from getpass import getpass
 from shutil import which
-from abc import abstractmethod, ABCMeta
-import sys
+from typing import Any, Callable, Optional
+
 import click
+from pynentry import PinEntryCancelled, PynEntry, show_message
+
+from .exceptions import Exit
+from .psuedofunc import PsuedoFunc
 
 """
 We can't use ABC by itself because another metaclass is also used
@@ -14,10 +17,10 @@ because ABC does not use PsuedoFunc as it's metaclass
 
 because if a metaclass and inheritance is used together to create a class,
 all the bases of that class should be using that same metaclass (or subclass of that metaclass)
-for it's creation, since we have to use ABC which is created using the ABCMeta metaclass 
+for it's creation, since we have to use ABC which is created using the ABCMeta metaclass
 and we have to use PsuedoFunc metaclass to create the PromptStrategy abstract class,
 
-we have to create a metaclass which inherits from both ABCMeta and PsuedoFunc, 
+we have to create a metaclass which inherits from both ABCMeta and PsuedoFunc,
 so that classes inheriting from PromptStrategy can also use PseudoFunc
 """
 
@@ -236,7 +239,7 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 passwd = pynentry_instance.get_pin()
             except PinEntryCancelled:
                 sys.stderr.write("operation cancelled! Abort!\n")
-                sys.exit()
+                raise Exit()
             pynentry_instance.prompt = old_prompt
             return "" if passwd is None else passwd
 

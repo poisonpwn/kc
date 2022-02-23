@@ -7,7 +7,7 @@ from nacl.public import PrivateKey, PublicKey, SealedBox
 from pathvalidate import sanitize_filepath
 
 from .crypto import KeySecretBox, PassEncryptedMessage
-from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr
+from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr, Exit
 from .misc import get_home_dir
 
 
@@ -46,6 +46,9 @@ class PublicKeyFile(KeyFile):
 
         Args:
             public_key (PublicKey): the public key to write to disk
+            should_confirm_overwrite (bool): ask user to confirm overwrite,
+             if file already exists
+            should_print_write_mesg (bool): print message
         """
         if should_confirm_overwrite and self.exists():
             try:
@@ -55,7 +58,7 @@ class PublicKeyFile(KeyFile):
                 )
             except click.exceptions.Abort:
                 click.echo("Operation Cancelled! Aborting...")
-                exit(0)
+                raise Exit()
 
         self.parent.mkdir(exist_ok=True)
         with open(self, "wb") as public_key_file:
@@ -68,7 +71,7 @@ class PublicKeyFile(KeyFile):
         """read/retrieve the public key from disk at the filepath"""
         if not self.exists():
             click.echo(f"public key does not exist in {self}!", err=True)
-            exit(0)
+            raise Exit()
         with open(self, "rb") as public_key_file:
             return PublicKey(public_key_file.read())
 
@@ -92,7 +95,7 @@ class SecretKeyFile(KeyFile):
     def encrypted_file_bytes(self):
         if not self.exists():
             click.echo(f"secret key does not exist in {self}!", err=True)
-            exit(0)
+            raise Exit()
         with open(self, "rb") as secret_key_filepath:
             return PassEncryptedMessage.from_bytes(secret_key_filepath.read())
 
@@ -114,7 +117,7 @@ class SecretKeyFile(KeyFile):
                 )
             except click.exceptions.Abort:
                 click.echo("Operation Cancelled! Aborting...")
-                exit(0)
+                raise Exit()
 
         # create a secret box with the password and use that to encrypt the secret key
         secret_box = KeySecretBox(master_passwd)

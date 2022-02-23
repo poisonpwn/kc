@@ -1,5 +1,4 @@
 from pathlib import Path
-from sys import exit
 from typing import Optional
 
 import click
@@ -7,7 +6,7 @@ from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 from pynentry import PynEntry
 
-from utils.exceptions import EmptyError
+from utils.exceptions import EmptyError, Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
 
@@ -73,7 +72,7 @@ class MasterKeyPair:
                 return self.secret_keyfile.retrieve(passwd)
             except CryptoError:
                 click.echo(self.DECRYPTION_FAILED_MESG, err=True)
-                exit(1)
+                raise Exit(1)
 
         # this returns the secret key bytes if the user provides the right password
         # else it will abort
@@ -120,7 +119,7 @@ class MasterKeyPair:
     # execute this callback when attemtps are exhausted
     def __ran_out_of_attempts(self):
         click.echo(self.DECRYPTION_FAILED_MESG, err=True)
-        exit()
+        raise Exit(1)
 
     def change_master_password(
         self, new_passwd: Optional[str] = None, old_passwd: Optional[str] = None

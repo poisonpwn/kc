@@ -1,5 +1,5 @@
 from utils.directory_tree import DirectoryTree
-from utils.exceptions import PasswdFileExistsErr
+from utils.exceptions import PasswdFileExistsErr, Exit
 from utils.keyfiles import PasswdFile, get_home_dir
 from nacl.public import PrivateKey, PublicKey
 from functools import partial
@@ -75,7 +75,7 @@ class PasswdStore:
                 click.confirm(prompt, default=False, abort=True, show_default=True)
             except click.Abort:
                 click.echo("Aborting...")
-                exit()
+                raise Exit()
 
     def remove_passwd(self, service_name: str):
         """remove password corresponding to the service name.
@@ -93,7 +93,7 @@ class PasswdStore:
             click.echo(
                 f"password for {service_name} does not exist in keystore", err=True
             )
-            exit()
+            raise Exit()
 
     def retrieve_passwd(
         self, service_name: str, get_secret_key_callback: Callable[..., PrivateKey]
@@ -117,7 +117,7 @@ class PasswdStore:
                 f"password for {service_name} does not exist in pass store",
                 err=True,
             )
-            exit()
+            raise Exit()
 
     def print_tree(self):
         """
