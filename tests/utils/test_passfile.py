@@ -3,6 +3,8 @@ from utils.exceptions import EmptyError
 from utils.exceptions import PasswdFileExistsErr
 from pathlib import Path
 from nacl.public import PrivateKey
+from string import ascii_letters
+from random import choices
 import shutil
 import pytest
 
@@ -35,7 +37,8 @@ def test_malicious_service_name(
 
 
 @pytest.fixture(autouse=True, scope="module")
-def pass_file(passfile_parent, service_name="service_name"):
+def pass_file(passfile_parent):
+    service_name = "".join(choices(ascii_letters, k=10))
     pass_file = PasswdFile.from_service_name(service_name, passfile_parent)
     assert not pass_file.exists()
     yield pass_file

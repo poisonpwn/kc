@@ -34,4 +34,3 @@ def test_write(public_key, public_keyfile: PublicKeyFile):
 def test_read(public_key, public_keyfile: PublicKeyFile):
     read_public_key = public_keyfile.retrieve()
     assert read_public_key == public_key
-    public_keyfile.unlink()
