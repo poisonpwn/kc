@@ -1,5 +1,7 @@
 import os
 from pathlib import Path
+from functools import wraps
+from . import exceptions
 
 
 def get_home_dir():
@@ -15,3 +17,24 @@ def get_default_value_from_env(env_var, default, constructor=None):
             return constructor(env_var_value)
         return env_var_value
     return default
+
+
+class exit_manager:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            return
+        if exc_type is not exceptions.Exit:
+            raise
+        exit(exc_value.error_code)
+
+
+def exit_if_raised(func):
+    @wraps(func)
+    def __wrapped_func(*args, **kwargs):
+        with exit_manager():
+            func(*args, **kwargs)
+
+    return __wrapped_func
