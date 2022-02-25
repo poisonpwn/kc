@@ -2,16 +2,16 @@ from pathlib import Path
 from typing import Optional
 
 import click
+import logging
 from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 from pynentry import PynEntry
 
-from utils.logging import get_logger
 from utils.exceptions import EmptyError, Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MasterKeyPair:

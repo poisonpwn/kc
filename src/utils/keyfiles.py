@@ -3,15 +3,15 @@ from pathlib import Path
 from typing import Callable
 
 import click
+import logging
 from nacl.public import PrivateKey, PublicKey, SealedBox
 from pathvalidate import sanitize_filepath
 
 from .crypto import KeySecretBox, PassEncryptedMessage
 from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr, Exit
 from .misc import get_home_dir
-from .logging import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class KeyFile(Path):

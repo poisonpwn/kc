@@ -9,9 +9,9 @@ from pynentry import PinEntryCancelled, PynEntry, show_message
 
 from .exceptions import Exit
 from .psuedofunc import PsuedoFunc
-from .logging import get_logger
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 """
 We can't use ABC by itself because another metaclass is also used
