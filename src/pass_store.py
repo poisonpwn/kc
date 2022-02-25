@@ -54,7 +54,8 @@ class PasswdStore:
                 self.passwd_store_path
             )
             click.echo(
-                f"{service_name_no_ext} does not exist in in passwd store ({self.passwd_store_path})"
+                f"fatal: {service_name_no_ext} does not exist in in passwd store ({self.passwd_store_path})",
+                err=True,
             )
             raise Exit()
 
@@ -96,7 +97,8 @@ class PasswdStore:
             passwd_file.unlink()
         except FileNotFoundError:
             click.echo(
-                f"password for {service_name} does not exist in keystore", err=True
+                f"fatal: password for {service_name} does not exist in keystore",
+                err=True,
             )
             raise Exit()
 
@@ -119,7 +121,7 @@ class PasswdStore:
             return passwd_file.retrieve_passwd(get_secret_key_callback)
         except FileNotFoundError:
             click.echo(
-                f"password for {service_name} does not exist in pass store",
+                f"fatal: password for {service_name} does not exist in pass store",
                 err=True,
             )
             raise Exit()

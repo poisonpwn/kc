@@ -131,7 +131,7 @@ def retrieve_password(
     timeout_seconds: float,
 ):
     if should_copy and timeout_seconds <= 0:
-        click.echo("timeout must be greater than 0")
+        click.echo("fatal: timeout must be greater than 0", err=True)
         raise Exit()
     get_secret_key_callback = obj.master_keypair.get_secret_key
     passwd = obj.passwd_store.retrieve_passwd(service_name, get_secret_key_callback)

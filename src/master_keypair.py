@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class MasterKeyPair:
-    DECRYPTION_FAILED_MESG = "Wrong Password! Decryption Failed"
+    DECRYPTION_FAILED_MESG = "fatal: Wrong Password! Decryption Failed"
     MASTER_PASSWD_PROMPT = "Enter master password: "
     NEW_MASTER_PASSWD_PROMPT = "Enter new master password: "
     PASSWD_CHANGED_MESG = "Password Changed"
@@ -145,8 +145,7 @@ class MasterKeyPair:
             new_passwd,
             should_confirm_overwrite=False,
         )
-        logger.debug("password changed")
-        click.echo(self.PASSWD_CHANGED_MESG)
+        logger.info("password changed")
 
     def get_public_key(self):
         return self.public_keyfile.retrieve()

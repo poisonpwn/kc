@@ -73,7 +73,7 @@ class PublicKeyFile(KeyFile):
         """read/retrieve the public key from disk at the filepath"""
         if not self.exists():
             logger.debug("tried to retrieve non existant PublicKeyFile")
-            click.echo(f"public key does not exist in {self}!", err=True)
+            click.echo(f"fatal: public key does not exist in {self}!", err=True)
             raise Exit()
         with open(self, "rb") as public_key_file:
             return PublicKey(public_key_file.read())
@@ -99,7 +99,7 @@ class SecretKeyFile(KeyFile):
     def encrypted_file_bytes(self):
         if not self.exists():
             logger.debug("tried to retrieve non existant SecretKeyFile")
-            click.echo(f"secret key does not exist in {self}!", err=True)
+            click.echo(f"fatal: secret key does not exist in {self}!", err=True)
             raise Exit()
 
         with open(self, "rb") as secret_key_filepath:
@@ -121,7 +121,7 @@ class SecretKeyFile(KeyFile):
                     abort=True,
                 )
             except click.exceptions.Abort:
-                click.echo("Operation Cancelled! Aborting...")
+                click.echo("fatal: Operation Cancelled! Aborting...")
                 logger.debug("abort SecretKeyFile overwrite")
                 raise Exit()
 
