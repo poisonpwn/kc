@@ -87,6 +87,7 @@ class PassEncryptedMessage(EncryptedMessage):
     def from_nacl_encrypted_message(
         cls, salt: str, encrypted_message: EncryptedMessage
     ):
+        """take over an NaCl encrypted message, and add salt"""
         encrypted_message.salt = salt
         encrypted_message.__class__ = cls
         return encrypted_message

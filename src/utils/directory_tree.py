@@ -95,7 +95,6 @@ class DirectoryTree(Node):
                 set empty flag
 
             --RETURN-- current directory object
-        ```
 
     """
 
