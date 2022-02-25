@@ -1,11 +1,14 @@
 from utils.directory_tree import DirectoryTree
 from utils.exceptions import PasswdFileExistsErr, Exit
 from utils.keyfiles import PasswdFile, get_home_dir
+from utils.logging import get_logger
 from nacl.public import PrivateKey, PublicKey
 from functools import partial
 from pathlib import Path
 from typing import Callable
 import click
+
+logger = get_logger(__name__)
 
 
 class PasswdStore:
@@ -75,6 +78,7 @@ class PasswdStore:
             try:
                 click.confirm(prompt, default=False, abort=True, show_default=True)
             except click.Abort:
+                logger.debug("abort PasswdFile overwrite")
                 click.echo("Aborting...")
                 raise Exit()
 
