@@ -9,6 +9,8 @@ from master_keypair import MasterKeyPair
 from pass_store import PasswdStore
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
+import utils.logging as kc_logging
+import logging
 
 
 @dataclass
@@ -40,6 +42,20 @@ class KcStateObj:
     type=click.Path(file_okay=True, readable=True),
     default=PublicKeyFile.DEFAULT_LOCATION,
 )
+@click.option(
+    "-v",
+    "--verbose",
+    "is_verbose_mode",
+    is_flag=True,
+    default=False,
+    help="provide verbose output",
+)
+@click.option(
+    "--debug",
+    "is_debug_mode",
+    is_flag=True,
+    help="print debug logs to console",
+)
 @click.pass_context
 @misc.exit_if_raised
 def cli(
@@ -47,7 +63,14 @@ def cli(
     passwd_store_path,
     public_key_path,
     secret_key_path,
+    is_verbose_mode: bool,
+    is_debug_mode: bool,
 ):
+    logger = kc_logging.get_global_logger()
+    if is_verbose_mode:
+        logger.setLevel(logging.INFO)
+    if is_debug_mode:
+        logger.setLevel(logging.DEBUG)
     ctx.obj = KcStateObj(
         master_keypair=MasterKeyPair(
             SecretKeyFile(secret_key_path),
@@ -76,7 +99,7 @@ def add(obj: KcStateObj, service_name: str, allow_empty: bool, passwd: str):
 @click.argument("service_name", required=True)
 @click.option(
     "-p",
-    "--print/--no-print",
+    "--print",
     "should_print",
     is_flag=True,
     help="print the result to console",
