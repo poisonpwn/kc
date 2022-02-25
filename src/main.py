@@ -9,6 +9,7 @@ from master_keypair import MasterKeyPair
 from pass_store import PasswdStore
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
+from utils.exceptions import Exit
 
 
 @dataclass
@@ -59,14 +60,13 @@ def cli(
 
 @cli.command()
 @click.argument("service_name")
-@click.option("--allow-empty", is_flag=True, help="allow the password to be empty")
 @click.option("-p", "--password", "passwd", required=False)
 @click.pass_obj
 @misc.exit_if_raised
-def add(obj: KcStateObj, service_name: str, allow_empty: bool, passwd: str):
+def add(obj: KcStateObj, service_name: str, passwd: str):
     public_key = obj.master_keypair.get_public_key()
     if passwd is None:
-        passwd = AskPasswd("Enter Password: ", allow_empty=allow_empty)  # type: ignore
+        passwd = AskPasswd("Enter Password: ")  # type: ignore
     elif passwd == "-":
         passwd = click.get_text_stream("stdin").readline().rstrip()
     obj.passwd_store.insert_passwd(service_name, passwd, public_key)  # type: ignore
@@ -90,11 +90,26 @@ def add(obj: KcStateObj, service_name: str, allow_empty: bool, passwd: str):
     is_flag=True,
     help="copy the password to clipboard",
 )
+@click.option(
+    "-t",
+    "--timeout",
+    "timeout_seconds",
+    default=21,
+    type=float,
+    help="the no of seconds before the password gets wiped from clipboard.",
+)
 @click.pass_obj
 @misc.exit_if_raised
 def retrieve_password(
-    obj: KcStateObj, service_name: str, should_print: bool, should_copy: bool
+    obj: KcStateObj,
+    service_name: str,
+    should_print: bool,
+    should_copy: bool,
+    timeout_seconds: float,
 ):
+    if should_copy and timeout_seconds <= 0:
+        click.echo("timeout must be greater than 0")
+        raise Exit()
     get_secret_key_callback = obj.master_keypair.get_secret_key
     passwd = obj.passwd_store.retrieve_passwd(service_name, get_secret_key_callback)
     if should_print:
@@ -113,7 +128,7 @@ def retrieve_password(
     )
     with daemon_ctx as ctx:
         pyperclip.copy(ctx.passwd)
-        sleep(21)
+        sleep(timeout_seconds)
         pyperclip.copy(ctx.clipboard_contents)
 
 

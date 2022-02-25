@@ -40,9 +40,7 @@ class MasterKeyPair:
             raise EmptyError("master password can't be empty!")
 
         if master_passwd is None:
-            master_passwd = AskPasswd.and_confirm(
-                "Enter a master password: ", allow_empty=False
-            )
+            master_passwd = AskPasswd.and_confirm("Enter a master password: ")
 
         secret_key = PrivateKey.generate()
         public_key = secret_key.public_key
@@ -135,9 +133,7 @@ class MasterKeyPair:
 
         plaintext_secret_key = self.get_secret_key(old_passwd)
         if new_passwd is None:
-            new_passwd = AskPasswd.and_confirm(
-                self.NEW_MASTER_PASSWD_PROMPT, allow_empty=False
-            )
+            new_passwd = AskPasswd.and_confirm(self.NEW_MASTER_PASSWD_PROMPT)
 
         self.secret_keyfile.write_encrypted(
             plaintext_secret_key,

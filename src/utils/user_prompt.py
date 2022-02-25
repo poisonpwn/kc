@@ -37,7 +37,6 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
     @abstractmethod
     def __post_init__(
         prompt: str,
-        allow_empty: bool = False,
         *,
         empty_message: Optional[str] = None,
     ):
@@ -46,7 +45,6 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
         Args:
             prompt_message (str): the message to prompt the user with.
             empty_prompt_message (str, optional): Defaults to "Password Can't be Empty".
-            allow_empty (bool, optional):  Defaults to False.
         """
         raise NotImplementedError(
             "__post_init__ not implemented in subclass of abstract class!"
@@ -57,7 +55,6 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
     def and_confirm(
         prompt: str,
         confirm_prompt="Confirm Password: ",
-        allow_empty: bool = False,
         *,
         empty_message: Optional[str] = None,
         mismatch_message: Optional[str] = None,
@@ -71,8 +68,6 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
             prompt (str): message to the user with
             confirm_prompt (str, optional): confirm message to ask the user
               Defaults to "Confirm Password: ".
-            allow_empty (bool, optional): should password to be empty or not.
-              Defaults to False.
             empty_message (str, optional): the message to show when password entered
               is empty. if None, use default empty message. Defaults to None.
             mismatch_message (str, optional): message to show when password entered
@@ -128,7 +123,6 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
     def __post_init__(
         prompt: str,
-        allow_empty: bool = False,
         *,
         empty_message: Optional[str] = None,
     ):
@@ -136,7 +130,7 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
             TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
         )
         while reply := getpass(prompt):
-            if len(reply) == 0 and not allow_empty:
+            if reply == "":
                 click.echo(empty_message)
             else:
                 return reply
@@ -145,7 +139,6 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     def and_confirm(
         prompt: str,
         confirm_prompt="Confirm Password: ",
-        allow_empty: bool = False,
         *,
         mismatch_message: Optional[str] = None,
         empty_message: Optional[str] = None,
@@ -160,7 +153,7 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         )
         while True:
             reply, confirm_reply = [
-                TTYAskUser(prompt, allow_empty, empty_message=empty_message)
+                TTYAskUser(prompt, empty_message=empty_message)
                 for prompt in [prompt, confirm_prompt]
             ]
             if reply == confirm_reply:
@@ -194,7 +187,6 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
     def __post_init__(
         prompt: str,
-        allow_empty=False,
         *,
         empty_message: Optional[str] = None,
     ) -> str:
@@ -203,7 +195,7 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
             # vvvvvvvv this is a hook used for prompting the user exactly once
             prompt_user = PinentryAskUser.use_prompt(p, prompt)
             while input_str := prompt_user():
-                if input_str == "" and not allow_empty:
+                if input_str == "":
                     show_message(empty_message)
                 else:
                     return input_str
@@ -249,7 +241,6 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
     def and_confirm(
         prompt: str,
         confirm_prompt="Confirm Password: ",
-        allow_empty: bool = False,
         *,
         mismatch_message: Optional[str] = None,
         empty_message: Optional[str] = None,
@@ -268,7 +259,7 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
             prompt_user = PinentryAskUser.use_prompt(p, prompt)
             while True:
                 passwd = prompt_user()
-                if not passwd and not allow_empty:
+                if passwd == "":
                     show_message(empty_message)
                     continue
 
