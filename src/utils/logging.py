@@ -1,20 +1,21 @@
 import logging
 from contextlib import contextmanager
+import sys
 
 
 class LogLevelStreamHandler(logging.StreamHandler):
     @contextmanager
     def set_tmp_stream(self, stream: str):
-        old_stream = self.setLevel(stream)
+        old_stream = self.setStream(stream)
         yield
         if old_stream is not None:
-            self.setLevel(old_stream)
+            self.setStream(old_stream)
 
     def emit(self, record):
-        if record.level >= logging.INFO:
+        if record.levelno >= logging.INFO:
             super().emit(record)
             return
-        with self.set_tmp_stream("sys.stdout"):
+        with self.set_tmp_stream(sys.stdout):
             super().emit(record)
 
 
@@ -22,8 +23,10 @@ class LogLevelFormatter(logging.Formatter):
     debug_format = "DEBUG: %(name)s: %(funcName)s:%(lineno)d: %(msg)s"
     info_format = "%(msg)s"
 
-    def __init__(self):
-        super().__init__(fmt="%(levelname)s: %(msg)s", datefmt=None, style="%")
+    def __init__(
+        self, fmt="%(levelname)s: %(msg)s", datefmt=None, style="%", *args, **kwargs
+    ):
+        super().__init__(fmt=fmt, datefmt=datefmt, style=style, *args, **kwargs)
 
     def format(self, record):
 
@@ -47,8 +50,13 @@ class LogLevelFormatter(logging.Formatter):
 
 
 def get_logger(logger_name):
-    pass
+    logger = logging.getLogger(logger_name)
+    logger.addHandler(get_console_handler())
+    return logger
 
 
-def get_console_formatter():
-    pass
+def get_console_handler(stream=sys.stderr):
+    handler = LogLevelStreamHandler(stream)
+    handler.setFormatter(LogLevelFormatter())
+    handler.propogate = False
+    return handler
