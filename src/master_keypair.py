@@ -6,9 +6,12 @@ from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 from pynentry import PynEntry
 
+from utils.logging import get_logger
 from utils.exceptions import EmptyError, Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
+
+logger = get_logger(__name__)
 
 
 class MasterKeyPair:
@@ -30,13 +33,13 @@ class MasterKeyPair:
         master_passwd: Optional[str] = None,
         *,
         should_confirm_overwrite: bool = True,
-        should_print_write_mesg: bool = True,
     ):
         """generates an NaCl keypair and writes to disk at self.keypair_dir location
         the secret key is symmetrically encrypted with master password provided by the user
         """
 
         if master_passwd == "":
+            logger.debug("empty master password tried")
             raise EmptyError("master password can't be empty!")
 
         if master_passwd is None:
@@ -51,12 +54,10 @@ class MasterKeyPair:
             secret_key,
             master_passwd,
             should_confirm_overwrite=should_confirm_overwrite,
-            should_print_write_mesg=should_print_write_mesg,
         )
         self.public_keyfile.write(
             public_key,
             should_confirm_overwrite=should_confirm_overwrite,
-            should_print_write_mesg=should_print_write_mesg,
         )
 
     def get_secret_key(self, passwd: Optional[str] = None):
@@ -70,7 +71,8 @@ class MasterKeyPair:
         if passwd is not None:
             try:
                 return self.secret_keyfile.retrieve(passwd)
-            except CryptoError:
+            except CryptoError as e:
+                logger.debug("decryption failed!", exc_info=e)
                 click.echo(self.DECRYPTION_FAILED_MESG, err=True)
                 raise Exit(1)
 
@@ -94,8 +96,7 @@ class MasterKeyPair:
         """
         try:
             # if successful return the master secret key bytes out of all enclosing functions
-            return self.secret_keyfile.retrieve(inputted_passwd)
-
+            service_passwd = self.secret_keyfile.retrieve(inputted_passwd)
         except CryptoError:
             # user entered wrong password and decryption failed,
             if attempts_left != 0:
@@ -115,10 +116,14 @@ class MasterKeyPair:
 
             # return False to run this function again on next attempt
             return False
+        else:
+            logger.debug("password decrypt successful")
+        return service_passwd
 
     # execute this callback when attemtps are exhausted
     def __ran_out_of_attempts(self):
         click.echo(self.DECRYPTION_FAILED_MESG, err=True)
+        logger.debug("decryption failed!, user ran out of attempts")
         raise Exit(1)
 
     def change_master_password(
@@ -143,8 +148,8 @@ class MasterKeyPair:
             plaintext_secret_key,
             new_passwd,
             should_confirm_overwrite=False,
-            should_print_write_mesg=False,
         )
+        logger.debug("password changed")
         click.echo(self.PASSWD_CHANGED_MESG)
 
     def get_public_key(self):

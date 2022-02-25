@@ -9,6 +9,9 @@ from pathvalidate import sanitize_filepath
 from .crypto import KeySecretBox, PassEncryptedMessage
 from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr, Exit
 from .misc import get_home_dir
+from .logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class KeyFile(Path):
@@ -31,6 +34,7 @@ class PublicKeyFile(KeyFile):
     # don't call super().__init__(*args, **kwargs) here
     def __init__(self, *args, **kwargs):
         if self.suffix != self.PUBKEY_FILE_EXT:
+            logger.debug("invalid file extension provided to PublicKeyFile")
             raise InvalidFilenameErr(
                 f"public key file name has to have extension {self.PUBKEY_FILE_EXT}"
             )
@@ -40,7 +44,6 @@ class PublicKeyFile(KeyFile):
         public_key: PublicKey,
         *,
         should_confirm_overwrite: bool = True,
-        should_print_write_mesg: bool = True,
     ):
         """write the public key to disk at filepath location
 
@@ -48,7 +51,6 @@ class PublicKeyFile(KeyFile):
             public_key (PublicKey): the public key to write to disk
             should_confirm_overwrite (bool): ask user to confirm overwrite,
              if file already exists
-            should_print_write_mesg (bool): print message
         """
         if should_confirm_overwrite and self.exists():
             try:
@@ -58,18 +60,19 @@ class PublicKeyFile(KeyFile):
                 )
             except click.exceptions.Abort:
                 click.echo("Operation Cancelled! Aborting...")
+                logger.debug("abort PublicKeyFile overwrite")
                 raise Exit()
 
         self.parent.mkdir(exist_ok=True)
         with open(self, "wb") as public_key_file:
             public_key_file.write(public_key.encode())
 
-        if should_print_write_mesg:
-            click.echo(f"public key file written at {self}")
+        logger.info(f"public key file written at {self}")
 
     def retrieve(self):
         """read/retrieve the public key from disk at the filepath"""
         if not self.exists():
+            logger.debug("tried to retrieve non existant PublicKeyFile")
             click.echo(f"public key does not exist in {self}!", err=True)
             raise Exit()
         with open(self, "rb") as public_key_file:
@@ -84,6 +87,7 @@ class SecretKeyFile(KeyFile):
 
     def __init__(self, *args, **kwargs):
         if self.suffix != self.SECKEY_FILE_EXT:
+            logger.debug("invalid file extension provided to SecretKeyFile")
             raise InvalidFilenameErr(
                 f"secret key file name has to have extension {self.SECKEY_FILE_EXT} but receieved {self}"
             )
@@ -94,8 +98,10 @@ class SecretKeyFile(KeyFile):
     @cached_property
     def encrypted_file_bytes(self):
         if not self.exists():
+            logger.debug("tried to retrieve non existant SecretKeyFile")
             click.echo(f"secret key does not exist in {self}!", err=True)
             raise Exit()
+
         with open(self, "rb") as secret_key_filepath:
             return PassEncryptedMessage.from_bytes(secret_key_filepath.read())
 
@@ -105,7 +111,6 @@ class SecretKeyFile(KeyFile):
         master_passwd,
         *,
         should_confirm_overwrite=True,
-        should_print_write_mesg: bool = True,
     ):
         if should_confirm_overwrite and self.exists():
             try:
@@ -117,6 +122,7 @@ class SecretKeyFile(KeyFile):
                 )
             except click.exceptions.Abort:
                 click.echo("Operation Cancelled! Aborting...")
+                logger.debug("abort SecretKeyFile overwrite")
                 raise Exit()
 
         # create a secret box with the password and use that to encrypt the secret key
@@ -130,9 +136,9 @@ class SecretKeyFile(KeyFile):
         # clear the cached encrypted bytes
         if hasattr(self, "encrypted_file_bytes"):
             del self.encrypted_file_bytes
+            logger.debug("cached encrypted secret keyfile bytes erased from memory")
 
-        if should_print_write_mesg:
-            click.echo(f"secret key file written at {self}")
+        logger.info(f"secret key file written at {self}")
 
     def retrieve(self, master_passwd: str):
         secret_box = KeySecretBox(master_passwd)
@@ -150,10 +156,12 @@ class PasswdFile(KeyFile):
 
     def __init__(self, *args, **kwargs):
         if self.suffix is None:
+            logger.debug("invalid empty file extension provided to PasswdFile")
             raise InvalidFilenameErr(
                 f"passwd file can't have empty extension, extension required: {self.PASSWD_FILE_EXT}"
             )
         elif self.suffix != self.PASSWD_FILE_EXT:
+            logger.debug("invalid file extension provided to PasswdFile")
             raise InvalidFilenameErr(
                 f"passwd has to have extension {self.PASSWD_FILE_EXT}, not {self.suffix}"
             )
@@ -174,6 +182,7 @@ class PasswdFile(KeyFile):
             EmptyError: raised when service name is empty
         """
         if len(service_name) == 0:
+            logger.debug("invalid empty service name provided to PasswdFile")
             raise EmptyError("service name of password can't be empty!")
 
         filesys_root = Path("").absolute().root
@@ -187,6 +196,7 @@ class PasswdFile(KeyFile):
 
     def alias(self, destination_path: Path):
         if not self.exists():
+            logger.debug("tried to alias non existant PasswdFile")
             raise FileNotFoundError(f"passwd file doesn't exist at {self}")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         destination_path.symlink_to(self, target_is_directory=False)
@@ -202,6 +212,7 @@ class PasswdFile(KeyFile):
         """
 
         if not self.exists():
+            logger.debug("tried to retrive non existant PasswdFile")
             raise FileNotFoundError(f"passwd file doesn't exist at {self}")
 
         secret_key = get_secret_key_callback()
@@ -224,7 +235,8 @@ class PasswdFile(KeyFile):
               be written to disk already exists.
         """
         if self.exists():
-            raise PasswdFileExistsErr(f"passfile already exists at location {self}")
+            logger.debug("tried to write to an existing PasswdFile")
+            raise PasswdFileExistsErr(f"PasswdFile already exists at location {self}")
         encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
         # make the parent directory in case of passwords which are organized. eg. 'alt/google'
         self.parent.mkdir(parents=True, exist_ok=True)

@@ -26,7 +26,7 @@ def public_keyfile(keyfile_parent_dir):
 
 def test_write(public_key, public_keyfile: PublicKeyFile):
     assert not public_keyfile.exists()
-    public_keyfile.write(public_key, should_print_write_mesg=False)
+    public_keyfile.write(public_key)
     assert public_keyfile.exists()
 
 

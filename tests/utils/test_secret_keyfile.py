@@ -29,9 +29,7 @@ def test_write_encrypted(
     secret_key: PrivateKey, secret_keyfile: SecretKeyFile, master_passwd: str
 ):
     assert not secret_keyfile.exists()
-    secret_keyfile.write_encrypted(
-        secret_key, master_passwd, should_print_write_mesg=False
-    )
+    secret_keyfile.write_encrypted(secret_key, master_passwd)
     assert secret_keyfile.exists()
 
 
