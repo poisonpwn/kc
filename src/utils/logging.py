@@ -49,8 +49,8 @@ class LogLevelFormatter(logging.Formatter):
         return result
 
 
-def get_logger(logger_name):
-    logger = logging.getLogger(logger_name)
+def get_global_logger():
+    logger = logging.getLogger(__package__)
     logger.addHandler(get_console_handler())
     return logger
 
