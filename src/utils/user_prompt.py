@@ -9,6 +9,9 @@ from pynentry import PinEntryCancelled, PynEntry, show_message
 
 from .exceptions import Exit
 from .psuedofunc import PsuedoFunc
+import logging
+
+logger = logging.getLogger(__name__)
 
 """
 We can't use ABC by itself because another metaclass is also used
@@ -231,6 +234,7 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
                 passwd = pynentry_instance.get_pin()
             except PinEntryCancelled:
                 sys.stderr.write("operation cancelled! Abort!\n")
+                logger.debug("pinentry user input aborted")
                 raise Exit()
             pynentry_instance.prompt = old_prompt
             return "" if passwd is None else passwd

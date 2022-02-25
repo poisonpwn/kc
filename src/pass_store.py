@@ -6,6 +6,9 @@ from functools import partial
 from pathlib import Path
 from typing import Callable
 import click
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class PasswdStore:
@@ -75,6 +78,7 @@ class PasswdStore:
             try:
                 click.confirm(prompt, default=False, abort=True, show_default=True)
             except click.Abort:
+                logger.debug("abort PasswdFile overwrite")
                 click.echo("Aborting...")
                 raise Exit()
 
