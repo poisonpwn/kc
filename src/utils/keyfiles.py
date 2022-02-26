@@ -8,7 +8,7 @@ from nacl.public import PrivateKey, PublicKey, SealedBox
 from pathvalidate import sanitize_filepath
 
 from .crypto import KeySecretBox, PassEncryptedMessage
-from .exceptions import EmptyError, InvalidFilenameErr, PasswdFileExistsErr, Exit
+from .exceptions import EmptyError, InvalidFilenameErr, Exit
 from .misc import get_home_dir
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,18 @@ class KeyFile(Path):
     # type(Path()) is necessary because path returns different type in __new__
     _flavour = type(Path())._flavour
     DEFAULT_PARENT_DIR = get_home_dir() / ".kc_keys"
+
+    @classmethod
+    def _confirm_overwrite(cls, overwrite_message: str):
+        try:
+            click.confirm(
+                overwrite_message,
+                abort=True,
+            )
+        except click.exceptions.Abort:
+            click.echo("Operation Cancelled! Aborting...")
+            logger.debug(f"abort {cls.__name__} overwrite")
+            raise Exit()
 
 
 class PublicKeyFile(KeyFile):
@@ -52,20 +64,12 @@ class PublicKeyFile(KeyFile):
             should_confirm_overwrite (bool): ask user to confirm overwrite,
              if file already exists
         """
-        if should_confirm_overwrite and self.exists():
-            try:
-                click.confirm(
-                    f"file {self} already EXISTS! Overwrite?",
-                    abort=True,
-                )
-            except click.exceptions.Abort:
-                click.echo("Operation Cancelled! Aborting...")
-                logger.debug("abort PublicKeyFile overwrite")
-                raise Exit()
+        if self.exists() and should_confirm_overwrite:
+            self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
 
         self.parent.mkdir(exist_ok=True)
-        with open(self, "wb") as public_key_file:
-            public_key_file.write(public_key.encode())
+        with open(self, "wb") as file_handle:
+            file_handle.write(public_key.encode())
 
         logger.info(f"public key file written at {self}")
 
@@ -112,18 +116,8 @@ class SecretKeyFile(KeyFile):
         *,
         should_confirm_overwrite=True,
     ):
-        if should_confirm_overwrite and self.exists():
-            try:
-                click.confirm(
-                    f"file {self} already EXISTS! Overwrite?",
-                    default=False,
-                    show_default=True,
-                    abort=True,
-                )
-            except click.exceptions.Abort:
-                click.echo("fatal: Operation Cancelled! Aborting...")
-                logger.debug("abort SecretKeyFile overwrite")
-                raise Exit()
+        if self.exists() and should_confirm_overwrite:
+            self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
 
         # create a secret box with the password and use that to encrypt the secret key
         secret_box = KeySecretBox(master_passwd)
@@ -223,7 +217,13 @@ class PasswdFile(KeyFile):
 
         return decrypted_passwd_bytes.decode("utf-8")
 
-    def write_passwd(self, passwd: str, public_key: PublicKey):
+    def write_passwd(
+        self,
+        passwd: str,
+        public_key: PublicKey,
+        *,
+        should_confirm_overwrite: bool = True,
+    ):
         """encrypt and write the passfile to disk
 
         Args:
@@ -235,9 +235,11 @@ class PasswdFile(KeyFile):
             PassFileExistsErr: raised when the passfile attempted to
               be written to disk already exists.
         """
-        if self.exists():
-            logger.debug("tried to write to an existing PasswdFile")
-            raise PasswdFileExistsErr(f"PasswdFile already exists at location {self}")
+        if self.exists() and should_confirm_overwrite:
+            logger.debug(f"trying to write to an existing PasswdFile {self}")
+            prompt = f"the service name {self.stem} already EXISTS! in pass store, Overwrite?"
+            self._confirm_overwrite(prompt)
+
         encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
         # make the parent directory in case of passwords which are organized. eg. 'alt/google'
         self.parent.mkdir(parents=True, exist_ok=True)
