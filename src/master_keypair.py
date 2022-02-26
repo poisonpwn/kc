@@ -28,14 +28,11 @@ class MasterKeyPair:
         self.secret_keyfile = secret_keyfile
         self.public_keyfile = public_keyfile
 
-    def generate_keypair(
-        self,
-        master_passwd: Optional[str] = None,
-        *,
-        should_confirm_overwrite: bool = True,
-    ):
+    def generate_keypair(self, master_passwd: Optional[str] = None, **kwargs):
         """generates an NaCl keypair and writes to disk at self.keypair_dir location
-        the secret key is symmetrically encrypted with master password provided by the user
+        the secret key is symmetrically encrypted with master password provided by the user.
+        **kwargs are same as `SecretKeyFile.write_encrypted` or `PrivateKeyFile.write` in
+        utils.keyfiles
         """
 
         if master_passwd == "":
@@ -48,15 +45,8 @@ class MasterKeyPair:
         secret_key = PrivateKey.generate()
         public_key = secret_key.public_key
 
-        self.secret_keyfile.write_encrypted(
-            secret_key,
-            master_passwd,
-            should_confirm_overwrite=should_confirm_overwrite,
-        )
-        self.public_keyfile.write(
-            public_key,
-            should_confirm_overwrite=should_confirm_overwrite,
-        )
+        self.secret_keyfile.write_encrypted(secret_key, master_passwd, **kwargs)
+        self.public_keyfile.write(public_key, **kwargs)
 
     def get_secret_key(self, passwd: Optional[str] = None):
         """

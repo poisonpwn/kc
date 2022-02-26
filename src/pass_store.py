@@ -59,8 +59,11 @@ class PasswdStore:
             )
             raise Exit()
 
-    def insert_passwd(self, service_name: str, passwd: str, public_key: PublicKey):
-        """encrypt the password given and write it to disk at key store location
+    def insert_passwd(
+        self, service_name: str, passwd: str, public_key: PublicKey, **kwargs
+    ):
+        """encrypt the password given and write it to disk at key store location.
+        **kwargs are same as `utils.keyfiles.PasswdFile.write_passwd`
 
         Args:
             service_name (str): the service the password is for,
@@ -72,7 +75,7 @@ class PasswdStore:
               used for encrypting the password
         """
         passwd_file = self.passwd_file_factory(service_name)
-        passwd_file.write_passwd(passwd, public_key)
+        passwd_file.write_passwd(passwd, public_key, **kwargs)
 
     def remove_passwd(self, service_name: str):
         """remove password corresponding to the service name.
