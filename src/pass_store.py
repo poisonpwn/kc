@@ -1,5 +1,5 @@
 from utils.directory_tree import DirectoryTree
-from utils.exceptions import PasswdFileExistsErr, Exit
+from utils.exceptions import Exit
 from utils.keyfiles import PasswdFile, get_home_dir
 from nacl.public import PrivateKey, PublicKey
 from functools import partial
@@ -72,16 +72,7 @@ class PasswdStore:
               used for encrypting the password
         """
         passwd_file = self.passwd_file_factory(service_name)
-        try:
-            passwd_file.write_passwd(passwd, public_key)
-        except PasswdFileExistsErr:
-            prompt = f"the passfile {passwd_file} already exists in {self.passwd_store_path} Overwrite?"
-            try:
-                click.confirm(prompt, default=False, abort=True, show_default=True)
-            except click.Abort:
-                logger.debug("abort PasswdFile overwrite")
-                click.echo("Aborting...")
-                raise Exit()
+        passwd_file.write_passwd(passwd, public_key)
 
     def remove_passwd(self, service_name: str):
         """remove password corresponding to the service name.
