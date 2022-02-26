@@ -70,7 +70,7 @@ def test_insert_passwd(
     assert service_info.passfile_path.exists()
 
 
-@pytest.mark.run(after="test_insert_passwd")
+@pytest.mark.order(after="test_insert_passwd")
 def test_retrieve_passwd(
     service_info: ServiceInfo, pass_store: "PasswdStore", secret_key
 ):

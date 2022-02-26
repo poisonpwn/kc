@@ -33,7 +33,7 @@ def test_generate_keypair(master_keypair: MasterKeyPair, master_passwd: str):
     assert master_keypair.public_keyfile.exists()
 
 
-@pytest.mark.run(after="test_generate_keypair")
+@pytest.mark.order(after="test_generate_keypair")
 def test_encrypt_decrypt(master_keypair: MasterKeyPair, master_passwd):
     secret_key = master_keypair.get_secret_key(master_passwd)
     public_key = master_keypair.get_public_key()

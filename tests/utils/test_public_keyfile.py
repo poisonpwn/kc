@@ -30,7 +30,7 @@ def test_write(public_key, public_keyfile: PublicKeyFile):
     assert public_keyfile.exists()
 
 
-@pytest.mark.run(after="test_write")
+@pytest.mark.order(after="test_write")
 def test_read(public_key, public_keyfile: PublicKeyFile):
     read_public_key = public_keyfile.retrieve()
     assert read_public_key == public_key

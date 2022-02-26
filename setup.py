@@ -10,7 +10,7 @@ setup(
     extras_require={
         "dev": [
             "pytest",
-            "pytest-ordering",
+            "pytest-order",
             "black",
             "flake8",
         ]
