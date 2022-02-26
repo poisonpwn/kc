@@ -1,7 +1,8 @@
 from utils.keyfiles import PasswdFile
-from utils.exceptions import EmptyError
-from utils.exceptions import PasswdFileExistsErr
+from utils.exceptions import EmptyError, Exit
+from .mock_input import replace_stdin
 from pathlib import Path
+from io import StringIO
 from nacl.public import PrivateKey
 from string import ascii_letters
 from random import choices
@@ -77,8 +78,9 @@ def test_passwd_write(pass_file: PasswdFile, public_key):
     assert not pass_file.exists()
     pass_file.write_passwd(passwd, public_key)
     assert pass_file.exists()
-    with pytest.raises(PasswdFileExistsErr):
-        pass_file.write_passwd(passwd, public_key)
+    with pytest.raises(Exit):
+        with replace_stdin(StringIO("n")):
+            pass_file.write_passwd(passwd, public_key)
 
 
 @pytest.mark.run(after="test_passwd_write")
@@ -96,3 +98,14 @@ def test_alias(pass_file: PasswdFile, tmp_alias_dest_path: Path):
     assert tmp_alias_dest_path.exists()
     assert tmp_alias_dest_path.is_symlink()
     assert tmp_alias_dest_path.readlink() == pass_file
+
+
+@pytest.mark.run(after="test_password_read")
+def test_password_overwrite(pass_file: PasswdFile, secret_key, public_key):
+    assert pass_file.exists()
+    overwritten_passwd = "OVERWRITTEN_PASS"
+    with replace_stdin(StringIO("y")):
+        pass_file.write_passwd(overwritten_passwd, public_key)
+    secret_key_callback = lambda: secret_key
+    decrypted_pass = pass_file.retrieve_passwd(secret_key_callback)
+    assert decrypted_pass == overwritten_passwd
