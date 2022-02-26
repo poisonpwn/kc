@@ -11,6 +11,7 @@ setup(
         "dev": [
             "pytest",
             "pytest-order",
+            "pytest-dependency",
             "black",
             "flake8",
         ]

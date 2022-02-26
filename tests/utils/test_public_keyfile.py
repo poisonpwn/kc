@@ -24,12 +24,14 @@ def public_keyfile(keyfile_parent_dir):
     return PublicKeyFile(keyfile_parent_dir / "nacl_public_key.pub")
 
 
+@pytest.mark.dependency(name="write")
 def test_write(public_key, public_keyfile: PublicKeyFile):
     assert not public_keyfile.exists()
     public_keyfile.write(public_key)
     assert public_keyfile.exists()
 
 
+@pytest.mark.dependency(depends=["write"])
 @pytest.mark.order(after="test_write")
 def test_read(public_key, public_keyfile: PublicKeyFile):
     read_public_key = public_keyfile.retrieve()

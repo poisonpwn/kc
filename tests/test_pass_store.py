@@ -62,6 +62,7 @@ def tmp_alias_paths(pass_store: "PasswdStore"):
         path.unlink(missing_ok=True)
 
 
+@pytest.mark.dependency(name="insert passwd")
 def test_insert_passwd(
     service_info: ServiceInfo, pass_store: "PasswdStore", public_key
 ):
@@ -70,6 +71,7 @@ def test_insert_passwd(
     assert service_info.passfile_path.exists()
 
 
+@pytest.mark.dependency(depends=["insert passwd"])
 @pytest.mark.order(after="test_insert_passwd")
 def test_retrieve_passwd(
     service_info: ServiceInfo, pass_store: "PasswdStore", secret_key
