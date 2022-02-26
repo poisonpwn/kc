@@ -18,11 +18,6 @@ class InvalidFilenameErr(Exception):
     """Error raised when invalid filename argument is passed in"""
 
 
-class PasswdFileExistsErr(Exception):
-    """Error raised when a keyfile is attempted to be entered
-    into the keystore but it already exists"""
-
-
 class EmptyError(Exception):
     """Error raised an invalid empty value is found"""
 
