@@ -200,6 +200,7 @@ class PasswdFile(KeyFile):
             raise FileNotFoundError(f"passwd file doesn't exist at {self}")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
         destination_path.symlink_to(self, target_is_directory=False)
+        logger.info(f"{self} was symlinked to {destination_path}")
 
     def retrieve_passwd(self, get_secret_key_callback: Callable[[], PrivateKey]) -> str:
         """retrieve and decrypt the password contained in the keyfile
@@ -242,3 +243,4 @@ class PasswdFile(KeyFile):
         self.parent.mkdir(parents=True, exist_ok=True)
         with open(self, "wb") as f:
             f.write(encrypted_passwd_bytes)
+        logger.info(f"password file written at {self}")
