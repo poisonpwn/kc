@@ -122,7 +122,7 @@ class PasswdPromptStrategy(metaclass=AbstractPsuedoFunc):
         )
 
 
-class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
+class TTYAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
     def __post_init__(
         prompt: str,
@@ -130,7 +130,9 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         empty_message: Optional[str] = None,
     ):
         empty_message = (
-            TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
+            TTYAskPasswd.DEFAULT_EMPTY_MESSAGE
+            if empty_message is None
+            else empty_message
         )
         while reply := getpass(prompt):
             if reply == "":
@@ -147,16 +149,18 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         empty_message: Optional[str] = None,
     ):
         mismatch_message = (
-            TTYAskUser.DEFAULT_MISMATCH_MESSAGE
+            TTYAskPasswd.DEFAULT_MISMATCH_MESSAGE
             if mismatch_message is None
             else mismatch_message
         )
         empty_message = (
-            TTYAskUser.DEFAULT_EMPTY_MESSAGE if empty_message is None else empty_message
+            TTYAskPasswd.DEFAULT_EMPTY_MESSAGE
+            if empty_message is None
+            else empty_message
         )
         while True:
             reply, confirm_reply = [
-                TTYAskUser(prompt, empty_message=empty_message)
+                TTYAskPasswd(prompt, empty_message=empty_message)
                 for prompt in [prompt, confirm_prompt]
             ]
             if reply == confirm_reply:
@@ -171,7 +175,7 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         attempt_count: int = 3,
     ):
         for i in range(1, attempt_count + 1):
-            inputted_value = TTYAskUser(prompt)
+            inputted_value = TTYAskPasswd(prompt)
             closure_result = breaking_closure(
                 inputted_value,
                 attempt_count - i,
@@ -186,17 +190,17 @@ class TTYAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
             return no_break_closure()
 
 
-class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
+class PinentryAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
     @staticmethod
     def __post_init__(
         prompt: str,
         *,
         empty_message: Optional[str] = None,
     ) -> str:
-        empty_message = empty_message or PinentryAskUser.DEFAULT_EMPTY_MESSAGE
+        empty_message = empty_message or PinentryAskPasswd.DEFAULT_EMPTY_MESSAGE
         with PynEntry() as p:
             # vvvvvvvv this is a hook used for prompting the user exactly once
-            prompt_user = PinentryAskUser.use_prompt(p, prompt)
+            prompt_user = PinentryAskPasswd.use_prompt(p, prompt)
             while input_str := prompt_user():
                 if input_str == "":
                     show_message(empty_message)
@@ -250,17 +254,17 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         empty_message: Optional[str] = None,
     ) -> str:
         empty_message = (
-            PinentryAskUser.DEFAULT_EMPTY_MESSAGE
+            PinentryAskPasswd.DEFAULT_EMPTY_MESSAGE
             if empty_message is None
             else empty_message
         )
         mismatch_message = (
-            PinentryAskUser.DEFAULT_MISMATCH_MESSAGE
+            PinentryAskPasswd.DEFAULT_MISMATCH_MESSAGE
             if mismatch_message is None
             else mismatch_message
         )
         with PynEntry() as p:
-            prompt_user = PinentryAskUser.use_prompt(p, prompt)
+            prompt_user = PinentryAskPasswd.use_prompt(p, prompt)
             while True:
                 passwd = prompt_user()
                 if passwd == "":
@@ -280,7 +284,7 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
         attempt_count: int = 3,
     ):
         with PynEntry() as p:
-            prompt_user = PinentryAskUser.use_prompt(p, prompt)
+            prompt_user = PinentryAskPasswd.use_prompt(p, prompt)
             for current_attmpt_no in reversed(range(attempt_count + 1)):
                 user_reply = prompt_user()
                 closure_result = breaking_closure(user_reply, current_attmpt_no, p)
@@ -294,9 +298,9 @@ class PinentryAskUser(PasswdPromptStrategy, metaclass=PsuedoFunc):
 
 
 if which("pinentry"):
-    AskPasswd = PinentryAskUser
+    AskPasswd = PinentryAskPasswd
 else:
-    AskPasswd = TTYAskUser
+    AskPasswd = TTYAskPasswd
 
 if __name__ == "__main__":
     print(AskPasswd("Enter password: "))
