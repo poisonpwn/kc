@@ -18,6 +18,7 @@ import logging
 class KcStateObj:
     master_keypair: MasterKeyPair
     passwd_store: PasswdStore
+    should_confirm: bool
 
 
 @click.group()
@@ -55,7 +56,15 @@ class KcStateObj:
     "--debug",
     "is_debug_mode",
     is_flag=True,
+    default=False,
     help="print debug logs to console",
+)
+@click.option(
+    "--yes",
+    "is_confirmed",
+    is_flag=True,
+    default=False,
+    help="reply yes to all confirmation messages",
 )
 @click.pass_context
 @misc.exit_if_raised
@@ -66,6 +75,7 @@ def cli(
     secret_key_path,
     is_verbose_mode: bool,
     is_debug_mode: bool,
+    is_confirmed: bool,
 ):
     logger = kc_logging.get_global_logger()
     if is_verbose_mode:
@@ -78,6 +88,7 @@ def cli(
             PublicKeyFile(public_key_path),
         ),
         passwd_store=PasswdStore(passwd_store_path),
+        should_confirm=not is_confirmed,
     )
 
 
@@ -89,10 +100,15 @@ def cli(
 def add(obj: KcStateObj, service_name: str, passwd: str):
     public_key = obj.master_keypair.get_public_key()
     if passwd is None:
-        passwd = AskPasswd("Enter Password: ")  # type: ignore
+        passwd = AskPasswd("Enter Password: ")
     elif passwd == "-":
         passwd = click.get_text_stream("stdin").readline().rstrip()
-    obj.passwd_store.insert_passwd(service_name, passwd, public_key)  # type: ignore
+    obj.passwd_store.insert_passwd(
+        service_name,
+        passwd,
+        public_key,
+        should_confirm_overwrite=obj.should_confirm,
+    )
 
 
 @cli.command(name="get")
@@ -159,7 +175,9 @@ def retrieve_password(
 @click.pass_obj
 @misc.exit_if_raised
 def generate_keypair(obj: KcStateObj):
-    obj.master_keypair.generate_keypair()
+    obj.master_keypair.generate_keypair(
+        should_confirm_overwrite=obj.should_confirm,
+    )
 
 
 @cli.command()
