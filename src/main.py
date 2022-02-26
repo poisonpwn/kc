@@ -180,7 +180,7 @@ def generate_keypair(obj: KcStateObj):
     )
 
 
-@cli.command()
+@cli.command(name="remove")
 @click.argument("service_name")
 @click.confirmation_option(prompt="Are you sure you want to remove the password?")
 @click.pass_obj
