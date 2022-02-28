@@ -24,7 +24,7 @@ class KeySecretBox(SecretBox):
         if salt is None:
             salt = random_bytes(KeySecretBox.KDF_SALT_BYTES).hex()
 
-        self.salt = salt
+        self._salt = salt
         derived_symmetric_key = pyargon2.hash(
             passwd,
             self.salt,
@@ -32,6 +32,10 @@ class KeySecretBox(SecretBox):
             encoding="raw",
         )
         super().__init__(derived_symmetric_key, encoding)
+
+    @property
+    def salt(self):
+        return self._salt
 
     def encrypt(
         self, plain_text, nonce=None, encoding=encoding.RawEncoder
@@ -79,18 +83,14 @@ class PassEncryptedMessage(EncryptedMessage):
     that holds an Encrypted message and the salt that was used to encrypt it
     """
 
-    def __init__(self, cipher_text, salt: str, *args, **kwargs):
-        super().__init__(cipher_text, *args, **kwargs)
-        self.salt = salt
-
     @classmethod
     def from_nacl_encrypted_message(
         cls, salt: str, encrypted_message: EncryptedMessage
     ):
-        """take over an NaCl encrypted message, and add salt"""
-        encrypted_message.salt = salt
-        encrypted_message.__class__ = cls
-        return encrypted_message
+        obj = cls(encrypted_message)
+        obj._salt = salt
+        obj.__dict__.update(encrypted_message.__dict__)
+        return obj
 
     def __bytes__(self):
         return pickle.dumps(self)
@@ -98,6 +98,10 @@ class PassEncryptedMessage(EncryptedMessage):
     @classmethod
     def from_bytes(_, bytes):
         return pickle.loads(bytes)
+
+    @property
+    def salt(self):
+        return self._salt
 
     def __eq__(self, other) -> bool:
         eq = super().__eq__(other)
