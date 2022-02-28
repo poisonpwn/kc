@@ -2,6 +2,7 @@ import logging
 from dataclasses import dataclass
 from functools import partial
 from time import sleep
+from pathlib import Path
 
 import click
 
@@ -84,10 +85,10 @@ def cli(
         logger.setLevel(logging.DEBUG)
     ctx.obj = KcStateObj(
         master_keypair=MasterKeyPair(
-            SecretKeyFile(secret_key_path),
-            PublicKeyFile(public_key_path),
+            SecretKeyFile(Path(secret_key_path)),
+            PublicKeyFile(Path(public_key_path)),
         ),
-        passwd_store=PasswdStore(passwd_store_path),
+        passwd_store=PasswdStore(Path(passwd_store_path)),
         should_confirm=not is_confirmed,
     )
 
