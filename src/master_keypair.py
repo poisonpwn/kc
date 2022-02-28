@@ -34,7 +34,7 @@ class MasterKeyPair:
         utils.keyfiles
         """
 
-        if master_passwd is Callable:
+        if callable(master_passwd):
             master_passwd = master_passwd()
 
         if not isinstance(master_passwd, str):
