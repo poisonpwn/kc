@@ -1,3 +1,4 @@
+import logging
 import sys
 from abc import ABCMeta, abstractmethod
 from getpass import getpass
@@ -9,7 +10,6 @@ from pynentry import PinEntryCancelled, PynEntry, show_message
 
 from .exceptions import Exit
 from .psuedofunc import PsuedoFunc
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -301,6 +301,3 @@ if which("pinentry"):
     AskPasswd = PinentryAskPasswd
 else:
     AskPasswd = TTYAskPasswd
-
-if __name__ == "__main__":
-    print(AskPasswd("Enter password: "))

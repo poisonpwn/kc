@@ -1,6 +1,7 @@
 import os
-from pathlib import Path
 from functools import wraps
+from pathlib import Path
+
 from . import exceptions
 
 

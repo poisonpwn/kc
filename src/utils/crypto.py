@@ -1,9 +1,10 @@
-from nacl import encoding
-from nacl.secret import SecretBox, EncryptedMessage
-from nacl.utils import random as random_bytes
-from typing import Optional
-import pyargon2
 import pickle
+from typing import Optional
+
+import pyargon2
+from nacl import encoding
+from nacl.secret import EncryptedMessage, SecretBox
+from nacl.utils import random as random_bytes
 
 
 class KeySecretBox(SecretBox):

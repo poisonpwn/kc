@@ -1,8 +1,7 @@
-from pathlib import Path
+import logging
 from typing import Optional
 
 import click
-import logging
 from nacl.exceptions import CryptoError
 from nacl.public import PrivateKey
 from pynentry import PynEntry
@@ -139,12 +138,3 @@ class MasterKeyPair:
 
     def get_public_key(self):
         return self.public_keyfile.retrieve()
-
-
-if __name__ == "__main__":
-    key_pair = MasterKeyPair(
-        SecretKeyFile(Path.home() / ".keys/nacl_seckey.enc"),
-        PublicKeyFile(Path.home() / ".keys/nacl_pubkey.pub"),
-    )
-    key_pair.generate_keypair()
-    key_pair.change_master_password()

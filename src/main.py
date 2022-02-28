@@ -1,17 +1,17 @@
+import logging
 from dataclasses import dataclass
 from functools import partial
 from time import sleep
 
 import click
 
+import utils.logging as kc_logging
 import utils.misc as misc
 from master_keypair import MasterKeyPair
 from pass_store import PasswdStore
+from utils.exceptions import Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
-from utils.exceptions import Exit
-import utils.logging as kc_logging
-import logging
 
 
 @dataclass
