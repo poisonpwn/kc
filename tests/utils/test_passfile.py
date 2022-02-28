@@ -89,8 +89,8 @@ def test_passwd_write(pass_file: PasswdFile, public_key):
 def test_passwd_read(pass_file: PasswdFile, secret_key):
     assert pass_file.exists()
     get_secret_key_callback = lambda: secret_key
-    decrpyted_passwd = pass_file.retrieve_passwd(get_secret_key_callback)
-    assert decrpyted_passwd == passwd
+    decrypted_passwd = pass_file.retrieve_passwd(get_secret_key_callback)
+    assert decrypted_passwd == passwd
 
 
 @pytest.mark.dependency(depends=["passwd write"])
