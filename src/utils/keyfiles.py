@@ -1,7 +1,7 @@
 from functools import cached_property
 from pathlib import Path
 from typing import Callable
-
+from shutil import copy
 import click
 import logging
 from nacl.public import PrivateKey, PublicKey, SealedBox
@@ -35,6 +35,14 @@ class KeyFile(Path):
             logger.debug(f"abort {cls.__name__} overwrite")
             raise Exit()
 
+    def _save_backup(self):
+        backup_dir = self.parent / "backup"
+        backup_dir.mkdir(exist_ok=True)
+        backup_dest_path = backup_dir / f"BACKUP__{self.name}"
+        copy(self, backup_dest_path)
+        assert backup_dest_path.exists()
+        logger.info(f"backup of {self} created at {backup_dest_path}")
+
 
 class PublicKeyFile(KeyFile):
     """a file which contains the public key of a keypair"""
@@ -66,6 +74,7 @@ class PublicKeyFile(KeyFile):
         """
         if self.exists() and should_confirm_overwrite:
             self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
+            self._save_backup()
 
         self.parent.mkdir(exist_ok=True)
         with open(self, "wb") as file_handle:
@@ -118,6 +127,7 @@ class SecretKeyFile(KeyFile):
     ):
         if self.exists() and should_confirm_overwrite:
             self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
+            self._save_backup()
 
         # create a secret box with the password and use that to encrypt the secret key
         secret_box = KeySecretBox(master_passwd)
