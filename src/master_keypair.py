@@ -52,7 +52,7 @@ class MasterKeyPair:
         self.secret_keyfile.write_encrypted(secret_key, master_passwd, **kwargs)
         self.public_keyfile.write(public_key, **kwargs)
 
-    def get_secret_key(self, passwd: Optional[str] = None):
+    def get_secret_key(self, master_passwd: Optional[str] = None):
         """
         decrypt and return the secret key from disk using provided password
 
@@ -60,9 +60,9 @@ class MasterKeyPair:
             passwd (str): master password to be used for decrypting the secret key
         """
 
-        if passwd is not None:
+        if master_passwd is not None:
             try:
-                return self.secret_keyfile.retrieve(passwd)
+                return self.secret_keyfile.retrieve(master_passwd)
             except CryptoError as e:
                 logger.debug("decryption failed!", exc_info=e)
                 click.echo(self.DECRYPTION_FAILED_MESG, err=True)
