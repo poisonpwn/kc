@@ -48,7 +48,10 @@ class MasterKeyPair:
 
         secret_key = PrivateKey.generate()
         public_key = secret_key.public_key
-
+        if self.secret_keyfile.exists() or self.public_keyfile.exists():
+            logger.warn(
+                "KEYFILE EXISTS!, if keyfiles all the password in current pass store will be INVALIDATED!"
+            )
         self.secret_keyfile.write_encrypted(secret_key, master_passwd, **kwargs)
         self.public_keyfile.write(public_key, **kwargs)
 
