@@ -1,7 +1,7 @@
-import pickle
 from typing import Optional
 
 import pyargon2
+import bson
 from nacl import encoding
 from nacl.secret import EncryptedMessage, SecretBox
 from nacl.utils import random as random_bytes
@@ -28,7 +28,7 @@ class KeySecretBox(SecretBox):
         self._salt = salt
         derived_symmetric_key = pyargon2.hash(
             passwd,
-            self.salt,
+            salt,
             hash_len=SecretBox.KEY_SIZE,
             encoding="raw",
         )
@@ -85,20 +85,27 @@ class PassEncryptedMessage(EncryptedMessage):
     """
 
     @classmethod
-    def from_nacl_encrypted_message(
-        cls, salt: str, encrypted_message: EncryptedMessage
-    ):
+    def from_nacl_encrypted_message(cls, salt, encrypted_message: EncryptedMessage):
         obj = cls(encrypted_message)
-        obj._salt = salt
         obj.__dict__.update(encrypted_message.__dict__)
+        obj._salt = salt
         return obj
 
     def __bytes__(self):
-        return pickle.dumps(self)
+        return bson.dumps(
+            {
+                k: v
+                for k, v in self.__dict__.items()
+                if k in ["_ciphertext", "_salt", "_nonce"]
+            }
+        )
 
     @classmethod
-    def from_bytes(_, bytes):
-        return pickle.loads(bytes)
+    def from_bytes(cls, message_bytes):
+        parsed_bson = bson.loads(message_bytes)
+        obj = cls(parsed_bson["_nonce"] + parsed_bson["_ciphertext"])
+        obj.__dict__.update(parsed_bson)
+        return obj
 
     @property
     def salt(self):
