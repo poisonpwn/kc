@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Callable, Union
 
 import click
 from nacl.exceptions import CryptoError
@@ -27,19 +27,24 @@ class MasterKeyPair:
         self.secret_keyfile = secret_keyfile
         self.public_keyfile = public_keyfile
 
-    def generate_keypair(self, master_passwd: Optional[str] = None, **kwargs):
+    def generate_keypair(self, master_passwd: Union[str, Callable[..., str]], **kwargs):
         """generates an NaCl keypair and writes to disk at self.keypair_dir location
         the secret key is symmetrically encrypted with master password provided by the user.
         **kwargs are same as `SecretKeyFile.write_encrypted` or `PrivateKeyFile.write` in
         utils.keyfiles
         """
 
+        if master_passwd is Callable:
+            master_passwd = master_passwd()
+
+        if not isinstance(master_passwd, str):
+            raise TypeError(
+                "master_passwd must be a str or a callable that returns a str"
+            )
+
         if master_passwd == "":
             logger.debug("empty master password tried")
             raise EmptyError("master password can't be empty!")
-
-        if master_passwd is None:
-            master_passwd = AskPasswd.and_confirm("Enter a master password: ")
 
         secret_key = PrivateKey.generate()
         public_key = secret_key.public_key

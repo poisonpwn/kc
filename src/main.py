@@ -175,7 +175,9 @@ def retrieve_password(
 @click.pass_obj
 @misc.exit_if_raised
 def generate_keypair(obj: KcStateObj):
+    master_passwd_getter = partial(AskPasswd, prompt="Enter master password: ")
     obj.master_keypair.generate_keypair(
+        master_passwd=master_passwd_getter,
         should_confirm_overwrite=obj.should_confirm,
     )
 
