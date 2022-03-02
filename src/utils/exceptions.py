@@ -20,11 +20,3 @@ class InvalidFilenameErr(Exception):
 
 class EmptyError(Exception):
     """Error raised an invalid empty value is found"""
-
-
-class StdinError(Exception):
-    """Error raised when password via stdin cannot be handled gracefully."""
-
-
-class InvalidPasswordError(Exception):
-    """Error raised when password doesn't comply with criteria"""
