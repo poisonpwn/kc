@@ -1,19 +1,22 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Protocol, Optional, Type, Tuple
 import pyargon2
 from nacl.secret import SecretBox
+from nacl.public import (
+    SealedBox,
+    PrivateKey as NaclPrivateKey,
+    PublicKey as NaclPublicKey,
+)
 from nacl.utils import random as random_bytes
-from typing import Optional
 from .serializible import SerializibleDataclass
 
 
-class Encryptor(ABC):
-    @abstractmethod
-    def encrypt(bytes) -> bytes:
+class EncryptionBox(Protocol):
+    def encrypt(message_bytes: bytes) -> bytes:
         pass
 
-    @abstractmethod
-    def decrypt(bytes) -> bytes:
+    def decrypt(encrypted_message_bytes: bytes) -> bytes:
         pass
 
 
@@ -30,29 +33,34 @@ class Argon2KeyDeriver(KeyDeriver):
 
     @classmethod
     def derive_key(cls, passwd: str, salt: str, size: int):
-        return pyargon2.hash(password=passwd, salt=salt, hash_len=size, encoding="raw")
+        return pyargon2.hash(
+            password=passwd,
+            salt=salt,
+            hash_len=size,
+            encoding="raw",
+        )
 
 
 @dataclass
 class SymmetricEncryptedMessage(SerializibleDataclass):
-    message: bytes
+    mesg: bytes
     salt: bytes
 
 
-class SymmetricEncryptor:
-    key_encryptor: Encryptor = SecretBox
+class SymmetricEncryptionBox:
+    key_encryptor: EncryptionBox = SecretBox
     key_deriver: KeyDeriver = Argon2KeyDeriver
     key_size: int = SecretBox.KEY_SIZE
     salt_generator = random_bytes
 
     def __init__(self, passwd: str, salt: Optional[bytes] = None):
         if salt is None:
-            salt_size = SymmetricEncryptor.key_deriver.salt_size
-            salt = SymmetricEncryptor.salt_generator(salt_size).hex()
+            salt_size = SymmetricEncryptionBox.key_deriver.salt_size
+            salt = SymmetricEncryptionBox.salt_generator(salt_size).hex()
 
         self._salt = salt
-        self.encryptor = SymmetricEncryptor.key_encryptor(
-            self.key_deriver.derive_key(passwd, salt, SymmetricEncryptor.key_size)
+        self.encryptor = SymmetricEncryptionBox.key_encryptor(
+            self.key_deriver.derive_key(passwd, salt, SymmetricEncryptionBox.key_size)
         )
 
     @property
@@ -70,4 +78,16 @@ class SymmetricEncryptor:
         cls, passwd: str, encrypted_message: SymmetricEncryptedMessage
     ) -> bytes:
         encryptor = cls(passwd, encrypted_message.salt)
-        return encryptor.decrypt(encrypted_message.message)
+        return encryptor.decrypt(encrypted_message.mesg)
+
+
+AssymetricEncryptionBox: EncryptionBox = SealedBox
+PublicKey: Type = NaclPublicKey
+SecretKey: Type = NaclPrivateKey
+
+
+def generate_keypair() -> Tuple[SecretKey, PublicKey]:
+    nacl_private_key = NaclPrivateKey.generate()
+    nacl_public_key = nacl_private_key.public_key
+
+    return nacl_private_key, nacl_public_key
