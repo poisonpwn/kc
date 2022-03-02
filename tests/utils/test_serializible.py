@@ -1,10 +1,10 @@
-from utils.serializible import Serializible
+from utils.serializible import SerializibleDataclass
 from dataclasses import dataclass
 import pytest
 
 
 @dataclass
-class SerializibleMessage(Serializible):
+class SerializibleMessage(SerializibleDataclass):
     message: bytes
     other_info: str
 
@@ -20,4 +20,4 @@ def serialized():
 
 
 def test_desirialize(serialized):
-    assert SerializibleMessage.from_bytes(serialized) == serializible_instance
+    assert SerializibleMessage.deserialize(serialized) == serializible_instance

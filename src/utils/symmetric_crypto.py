@@ -4,7 +4,7 @@ import pyargon2
 from nacl.secret import SecretBox
 from nacl.utils import random as random_bytes
 from typing import Optional
-from .serializible import Serializible
+from .serializible import SerializibleDataclass
 
 
 class Encryptor(ABC):
@@ -34,7 +34,7 @@ class Argon2KeyDeriver(KeyDeriver):
 
 
 @dataclass
-class SymmetricEncryptedMessage(Serializible):
+class SymmetricEncryptedMessage(SerializibleDataclass):
     message: bytes
     salt: bytes
 
