@@ -1,8 +1,8 @@
 import logging
 from functools import cached_property
 from pathlib import Path
-from shutil import copy
 from .exceptions import Exit
+import shutil
 from typing import Optional, Union, Callable
 
 import click
@@ -61,7 +61,7 @@ class FsHandler:
         self.path.write_bytes(mesg)
         logger.debug(f"message written to file {self.path}")
 
-        if hasattr(self, "file_bytes"):
+        if "file_bytes" in self.__dict__:
             logger.debug(f"erasing cached bytes of file {self.path}")
             del self.file_bytes
 
@@ -86,7 +86,7 @@ class FsHandler:
         backup_dir = self.path.parent / "backup"
         backup_dir.mkdir(exist_ok=True)
         backup_dest_path = backup_dir / f"BACKUP__{self.path.name}"
-        copy(self.path, backup_dest_path)
+        shutil.copy(self.path, backup_dest_path)
         assert backup_dest_path.exists()
         logger.info(f"backup of {self.path} created at {backup_dest_path}")
 
