@@ -21,7 +21,11 @@ class FsHandler:
     @cached_property
     def file_bytes(self):
         logger.debug(f"read bytes from {self.path}")
-        return self.path.read_bytes()
+        try:
+            return self.path.read_bytes()
+        except FileNotFoundError:
+            logger.debug("tried to read non existant file")
+            raise
 
     def write(
         self,
@@ -52,12 +56,12 @@ class FsHandler:
         if self.path.exists() and should_confirm_overwrite:
             if should_confirm_overwrite:
                 logger.debug(f"attempting overwrite of file {self.path}")
-                if not self._confirm_overwrite(overwrite_mesg):
-                    raise Exit()
+                self._confirm_overwrite(overwrite_mesg)
 
             if should_backup:
                 self._save_backup()
 
+        self.path.parent.mkdir(exist_ok=True)
         self.path.write_bytes(mesg)
         logger.debug(f"message written to file {self.path}")
 
@@ -68,6 +72,8 @@ class FsHandler:
     def _confirm_overwrite(
         self, confirm_mesg: Optional[Union[str, Callable[[Path], str]]] = None
     ):
+        """if file already exists, ask user for confirmation before overwriting
+        the file."""
         if confirm_mesg is None:
             confirm_mesg = self.DEFAULT_OVERWRITE_MESSAGE.format(self.path)
         elif callable(confirm_mesg):
@@ -76,10 +82,8 @@ class FsHandler:
         try:
             click.confirm(confirm_mesg, abort=True)
         except click.Abort:
-            click.echo("Aborting... ")
             logger.debug(f"aborting overwrite of file {self.path}")
-            return False
-        return True
+            raise Exit("Aborting...", error_code=0)
 
     def _save_backup(self):
         """save a backup of the file under <parent>/backup/BACKUP_<filename>"""

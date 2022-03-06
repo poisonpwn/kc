@@ -11,7 +11,9 @@ BYTES = b"this is a message"
 OTHER_BYTES = b"this is a message"
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(
+    scope="module", params=["temp_path_1.txt", "parent_folder_2/temp_path_2.txt"]
+)
 def tmp_path(tmp_path_factory):
     file_parent = tmp_path_factory.mktemp("temp_file")
     tmp_path = file_parent / "temp_path.txt"
