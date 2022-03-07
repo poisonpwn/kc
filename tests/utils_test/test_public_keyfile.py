@@ -1,6 +1,7 @@
 import utils.exceptions as exceptions
 from utils.keyfiles import PublicKeyFile
 import pytest
+from unittest.mock import patch
 
 
 @pytest.mark.parametrize(
@@ -14,7 +15,7 @@ import pytest
     ],
 )
 def test_public_keyfile_creation(filename, keyfile_parent_dir):
-    with pytest.raises(exceptions.InvalidFilenameErr):
+    with pytest.raises(exceptions.Exit):
         keyfile_path = keyfile_parent_dir / filename
         PublicKeyFile(keyfile_path)
 
@@ -24,15 +25,17 @@ def public_keyfile(keyfile_parent_dir):
     return PublicKeyFile(keyfile_parent_dir / "nacl_public_key.pub")
 
 
-@pytest.mark.dependency(name="write")
-def test_write(public_key, public_keyfile: PublicKeyFile):
-    assert not public_keyfile.exists()
+@patch("utils.keyfiles.PublicKeyFile.file_handler_cls.write")
+def test_write(write_mock, public_key, public_keyfile: PublicKeyFile):
     public_keyfile.write(public_key)
-    assert public_keyfile.exists()
+    write_mock.assert_called()
 
 
-@pytest.mark.dependency(depends=["write"])
-@pytest.mark.order(after="test_write")
-def test_read(public_key, public_keyfile: PublicKeyFile):
-    read_public_key = public_keyfile.retrieve()
-    assert read_public_key == public_key
+@patch(
+    "utils.keyfiles.PublicKeyFile.file_handler_cls.read",
+    return_value=b"return value bytes",
+)
+def test_read(read_mock, public_keyfile: PublicKeyFile):
+    return_value_bytes = read_mock.return_value
+    read_bytes = public_keyfile.read()
+    assert read_bytes == return_value_bytes

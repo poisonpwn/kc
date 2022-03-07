@@ -8,8 +8,8 @@ import click
 
 import utils.logging as kc_logging
 import utils.misc as misc
-from master_keypair import MasterKeyPair
-from pass_store import PasswdStore
+from master_key_pair import MasterKeyPair
+from passwd_store import PasswdStore
 from utils.exceptions import Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
 from utils.user_prompt import AskPasswd
@@ -148,8 +148,7 @@ def retrieve_password(
     timeout_seconds: float,
 ):
     if should_copy and timeout_seconds <= 0:
-        click.echo("fatal: timeout must be greater than 0", err=True)
-        raise Exit()
+        raise Exit("fatal: timeout must be greater than 0")
     get_secret_key_callback = obj.master_keypair.get_secret_key
     passwd = obj.passwd_store.retrieve_passwd(service_name, get_secret_key_callback)
     if should_print:
@@ -176,16 +175,24 @@ def retrieve_password(
 @click.pass_obj
 @misc.exit_if_raised
 def generate_keypair(obj: KcStateObj):
-    master_passwd_getter = partial(AskPasswd, prompt="Enter master password: ")
+    master_passwd_getter = partial(
+        AskPasswd.and_confirm, prompt="Enter master password: "
+    )
     obj.master_keypair.generate_keypair(
         master_passwd=master_passwd_getter,
         should_confirm_overwrite=obj.should_confirm,
     )
 
 
+@cli.command(name="change-passwd")
+@click.pass_obj
+@misc.exit_if_raised
+def change_passwd(obj: KcStateObj):
+    obj.master_keypair.change_master_password()
+
+
 @cli.command(name="remove")
 @click.argument("service_name")
-@click.confirmation_option(prompt="Are you sure you want to remove the password?")
 @click.pass_obj
 @misc.exit_if_raised
 def remove(obj: KcStateObj, service_name: str):

@@ -1,121 +1,99 @@
-from typing import Optional
-
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Protocol, Optional, Tuple, NewType
 import pyargon2
-import bson
-from nacl import encoding
-from nacl.secret import EncryptedMessage, SecretBox
+import nacl.exceptions
+from nacl.secret import SecretBox
+from nacl.public import (
+    SealedBox,
+    PrivateKey as NaclPrivateKey,
+    PublicKey as NaclPublicKey,
+)
 from nacl.utils import random as random_bytes
+from .serializible import SerializibleDataclass
+from .exceptions import DecryptionError
 
 
-class KeySecretBox(SecretBox):
-    """creates a SecretBox from a key derived from
-    the password, using argon2 key derivation
-    """
+class EncryptionBox(Protocol):
+    def encrypt(message_bytes: bytes) -> bytes:
+        pass
 
-    KDF_SALT_BYTES = 32
+    def decrypt(encrypted_message_bytes: bytes) -> bytes:
+        pass
 
-    def __init__(
-        self, passwd: str, salt: Optional[str] = None, encoding=encoding.RawEncoder
-    ):
-        """Create a SecretBox from the password provided,
-        the salt argument, if specified, will be used to derive the key
-        else a random salt is generated.
-        """
 
-        if salt is None:
-            salt = random_bytes(KeySecretBox.KDF_SALT_BYTES).hex()
+class KeyDeriver(ABC):
+    salt_size: int
 
-        self._salt = salt
-        derived_symmetric_key = pyargon2.hash(
-            passwd,
-            salt,
-            hash_len=SecretBox.KEY_SIZE,
+    @abstractmethod
+    def derive_key(passwd: str, salt: str, size: int) -> bytes:
+        pass
+
+
+class Argon2KeyDeriver(KeyDeriver):
+    salt_size = 32
+
+    @classmethod
+    def derive_key(cls, passwd: str, salt: str, size: int):
+        return pyargon2.hash(
+            password=passwd,
+            salt=salt,
+            hash_len=size,
             encoding="raw",
         )
-        super().__init__(derived_symmetric_key, encoding)
+
+
+@dataclass
+class SymmetricEncryptedMessage(SerializibleDataclass):
+    mesg: bytes
+    salt: str
+
+
+class SymmetricEncryptionBox:
+    key_encryptor: EncryptionBox = SecretBox
+    key_deriver: KeyDeriver = Argon2KeyDeriver
+    key_size: int = SecretBox.KEY_SIZE
+    salt_generator = random_bytes
+
+    def __init__(self, passwd: str, salt: Optional[str] = None):
+        if salt is None:
+            salt_size = SymmetricEncryptionBox.key_deriver.salt_size
+            salt = SymmetricEncryptionBox.salt_generator(salt_size).hex()
+
+        self._salt = salt
+        self.encryptor = SymmetricEncryptionBox.key_encryptor(
+            self.key_deriver.derive_key(passwd, salt, SymmetricEncryptionBox.key_size)
+        )
 
     @property
     def salt(self):
         return self._salt
 
-    def encrypt(
-        self, plain_text, nonce=None, encoding=encoding.RawEncoder
-    ) -> "PassEncryptedMessage":
-        """encrypt the message and return the ciphertext.
-        encode using the specified encoding format"""
+    def encrypt(self, message: bytes) -> SymmetricEncryptedMessage:
+        return SymmetricEncryptedMessage(self.encryptor.encrypt(message), self.salt)
 
-        nacl_encrypted_message = super().encrypt(plain_text, nonce, encoding)
-        return PassEncryptedMessage.from_nacl_encrypted_message(
-            self.salt, nacl_encrypted_message
-        )
+    def decrypt(self, message: bytes) -> bytes:
+        try:
+            return self.encryptor.decrypt(message)
+        except nacl.exceptions.CryptoError as e:
+            raise DecryptionError(*e.args)
 
     @classmethod
     def decrypt_message(
-        cls,
-        encrypted_message: "PassEncryptedMessage",
-        passwd: str,
-        nonce=None,
-        encoding=encoding.RawEncoder,
-    ):
-        """decrypt the message using the provided password and return the plaintext.
-
-        Args:
-            encrypted_message (PassEncryptedMessage): the message to decrypt
-            passwd (str): the password to decrypt the message with
-            nonce ([type], optional): Number used ONCE, to be used when decrypting
-              if nonce is None, it is assumed that the message object contains the nonce.
-              Defaults to None.
-            encoding (encoding.Encoder, optional): [description]. Defaults to encoding.RawEncoder.
-              the encoder to be used to encode the plaintext.
-
-        Returns:
-            Any: the decrypted message
-        """
-        secret_box = cls(passwd, encrypted_message.salt)
-        return secret_box.decrypt(
-            encrypted_message,
-            nonce,
-            encoding,
-        )
+        cls, passwd: str, encrypted_message: SymmetricEncryptedMessage
+    ) -> bytes:
+        encryptor = cls(passwd, encrypted_message.salt)
+        return encryptor.decrypt(encrypted_message.mesg)
 
 
-class PassEncryptedMessage(EncryptedMessage):
-    """an nacl.secret.EncryptedMessages subclass (bytes subclass)
-    that holds an Encrypted message and the salt that was used to encrypt it
-    """
+AssymetricEncryptionBox = SealedBox
+PublicKey = NaclPublicKey
+SecretKey = NaclPrivateKey
+AssymetricEncryptedMessage = NewType("AssymetricEncryptedMessage", bytes)
 
-    @classmethod
-    def from_nacl_encrypted_message(cls, salt, encrypted_message: EncryptedMessage):
-        obj = cls(encrypted_message)
-        obj.__dict__.update(encrypted_message.__dict__)
-        obj._salt = salt
-        return obj
 
-    def __bytes__(self):
-        return bson.dumps(
-            {
-                k: v
-                for k, v in self.__dict__.items()
-                if k in ["_ciphertext", "_salt", "_nonce"]
-            }
-        )
+def generate_keypair() -> Tuple[SecretKey, PublicKey]:
+    nacl_private_key = NaclPrivateKey.generate()
+    nacl_public_key = nacl_private_key.public_key
 
-    @classmethod
-    def from_bytes(cls, message_bytes):
-        parsed_bson = bson.loads(message_bytes)
-        obj = cls(parsed_bson["_nonce"] + parsed_bson["_ciphertext"])
-        obj.__dict__.update(parsed_bson)
-        return obj
-
-    @property
-    def salt(self):
-        return self._salt
-
-    def __eq__(self, other) -> bool:
-        eq = super().__eq__(other)
-        if isinstance(other, PassEncryptedMessage):
-            return eq and other.salt == self.salt
-        return eq
-
-    def __ne__(self, other) -> bool:
-        return not (self == other)
+    return nacl_private_key, nacl_public_key

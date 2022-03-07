@@ -1,5 +1,4 @@
 import logging
-import sys
 from abc import ABCMeta, abstractmethod
 from getpass import getpass
 from shutil import which
@@ -134,8 +133,8 @@ class TTYAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
             if empty_message is None
             else empty_message
         )
-        while reply := getpass(prompt):
-            if reply == "":
+        while True:
+            if reply := getpass(prompt):
                 click.echo(empty_message)
             else:
                 return reply
@@ -201,11 +200,11 @@ class PinentryAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
         with PynEntry() as p:
             # vvvvvvvv this is a hook used for prompting the user exactly once
             prompt_user = PinentryAskPasswd.use_prompt(p, prompt)
-            while input_str := prompt_user():
-                if input_str == "":
+            while True:
+                if (inputted_passwd := prompt_user()) == "":
                     show_message(empty_message)
                 else:
-                    return input_str
+                    return inputted_passwd
 
     @staticmethod
     def use_prompt(
@@ -237,9 +236,8 @@ class PinentryAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
             try:
                 passwd = pynentry_instance.get_pin()
             except PinEntryCancelled:
-                sys.stderr.write("operation cancelled! Abort!\n")
                 logger.debug("pinentry user input aborted")
-                raise Exit()
+                raise Exit("operation cancelled! Abort!\n", error_code=0, stderr=False)
             pynentry_instance.prompt = old_prompt
             return "" if passwd is None else passwd
 
@@ -266,8 +264,7 @@ class PinentryAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
         with PynEntry() as p:
             prompt_user = PinentryAskPasswd.use_prompt(p, prompt)
             while True:
-                passwd = prompt_user()
-                if passwd == "":
+                if (passwd := prompt_user()) == "":
                     show_message(empty_message)
                     continue
 
