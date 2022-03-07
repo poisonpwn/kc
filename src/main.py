@@ -32,18 +32,25 @@ class KcStateObj:
         env_var=PasswdStore.PASSWD_STORE_DIR_ENV_VAR,
         default=PasswdStore.DEFAULT_LOCATION,
     ),
+    help=(
+        f"the password store folder to use, also can be "
+        f"specified by {PasswdStore.PASSWD_STORE_DIR_ENV_VAR} environment variable"
+        f" defaults to $XDG_HOME/.kc_keys or ~/.kc_keys"
+    ),
 )
 @click.option(
     "--secret-key",
     "secret_key_path",
     type=click.Path(file_okay=True, readable=True),
     default=SecretKeyFile.DEFAULT_LOCATION,
+    help=f"filepath to secret key used for decryption, defaults to {SecretKeyFile.DEFAULT_LOCATION}",
 )
 @click.option(
     "--public_key",
     "public_key_path",
     type=click.Path(file_okay=True, readable=True),
     default=PublicKeyFile.DEFAULT_LOCATION,
+    help=f"filepath to public key used for encryption, defaults to {PublicKeyFile.DEFAULT_LOCATION}",
 )
 @click.option(
     "-v",
@@ -119,8 +126,8 @@ def add(obj: KcStateObj, service_name: str, passwd: str):
     "--print",
     "should_print",
     is_flag=True,
-    help="print the result to console",
     default=False,
+    help="print the result to console",
 )
 @click.option(
     "-c",
