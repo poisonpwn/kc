@@ -3,6 +3,7 @@ from functools import wraps
 from pathlib import Path
 
 from . import exceptions
+import click
 
 
 def get_home_dir():
@@ -29,6 +30,7 @@ class exit_manager:
             return
         if exc_type is not exceptions.Exit:
             raise
+        click.echo(str(exc_value), err=exc_value.stderr)
         exit(exc_value.error_code)
 
 
