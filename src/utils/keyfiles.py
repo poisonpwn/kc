@@ -1,258 +1,188 @@
-from functools import cached_property
-from pathlib import Path
-from typing import Callable
-from shutil import copy
-import click
 import logging
-from nacl.public import PrivateKey, PublicKey, SealedBox
-from pathvalidate import sanitize_filepath
+import click
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import ClassVar, Type, Union, Callable
 
-from .crypto import KeySecretBox, PassEncryptedMessage
-from .exceptions import EmptyError, InvalidFilenameErr, Exit
+from .crypto import AssymetricEncryptedMessage, PublicKey, SymmetricEncryptedMessage
+from .exceptions import Exit
+from .fs_handler import FsHandler
 from .misc import get_home_dir
 
 logger = logging.getLogger(__name__)
 
 
-class KeyFile(Path):
-    def __new__(cls, *args, **kwargs):
-        self = super().__new__(cls, *args, **kwargs).absolute()
-        return self
+class KeyFile(ABC):
+    DEFAULT_PARENT_DIR: ClassVar[Path] = get_home_dir() / ".kc_keys"
+    message_type: ClassVar[Type]  # constructible from bytes
+    file_handler_cls: ClassVar[Type] = FsHandler
 
-    # type(Path()) is necessary because path returns different type in __new__
-    _flavour = type(Path())._flavour
-    DEFAULT_PARENT_DIR = get_home_dir() / ".kc_keys"
+    def __init__(self, path: Path):
+        self._validate(path)
+        self.path = path
+        self._fs_handler = KeyFile.file_handler_cls(path)
 
     @classmethod
-    def _confirm_overwrite(cls, overwrite_message: str):
-        try:
-            click.confirm(
-                overwrite_message,
-                abort=True,
-            )
-        except click.exceptions.Abort:
-            click.echo("Operation Cancelled! Aborting...")
-            logger.debug(f"abort {cls.__name__} overwrite")
-            raise Exit()
+    @abstractmethod
+    def _validate(cls, path: Path) -> bool:
+        ...
 
-    def _save_backup(self):
-        backup_dir = self.parent / "backup"
-        backup_dir.mkdir(exist_ok=True)
-        backup_dest_path = backup_dir / f"BACKUP__{self.name}"
-        copy(self, backup_dest_path)
-        assert backup_dest_path.exists()
-        logger.info(f"backup of {self} created at {backup_dest_path}")
+    def write(self, data: "message_type", **kwargs):
+        return self._fs_handler.write(data, **kwargs)
 
+    def read(self) -> bytes:
+        return self._fs_handler.read()
 
-class PublicKeyFile(KeyFile):
-    """a file which contains the public key of a keypair"""
-
-    PUBKEY_FILE_EXT = ".pub"
-    DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_pubkey{PUBKEY_FILE_EXT}"
-
-    # args and kwargs required for __new__
-    # don't call super().__init__(*args, **kwargs) here
-    def __init__(self, *args, **kwargs):
-        if self.suffix != self.PUBKEY_FILE_EXT:
-            logger.debug("invalid file extension provided to PublicKeyFile")
-            raise InvalidFilenameErr(
-                f"public key file name has to have extension {self.PUBKEY_FILE_EXT}"
-            )
-
-    def write(
-        self,
-        public_key: PublicKey,
-        *,
-        should_confirm_overwrite: bool = True,
-    ):
-        """write the public key to disk at filepath location
-
-        Args:
-            public_key (PublicKey): the public key to write to disk
-            should_confirm_overwrite (bool): ask user to confirm overwrite,
-             if file already exists
-        """
-        if self.exists() and should_confirm_overwrite:
-            self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
-            self._save_backup()
-
-        self.parent.mkdir(exist_ok=True)
-        with open(self, "wb") as file_handle:
-            file_handle.write(public_key.encode())
-
-        logger.info(f"public key file written at {self}")
-
-    def retrieve(self):
-        """read/retrieve the public key from disk at the filepath"""
-        if not self.exists():
-            logger.debug("tried to retrieve non existant PublicKeyFile")
-            click.echo(f"fatal: public key does not exist in {self}!", err=True)
-            raise Exit()
-        with open(self, "rb") as public_key_file:
-            return PublicKey(public_key_file.read())
+    def __repr__(self):
+        return f"{type(self).__name__}({self.path})"
 
 
 class SecretKeyFile(KeyFile):
-    """a file which contains the private key of a keypair."""
+    SECRET_KEY_SUFFIX = ".sec"
+    DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_seckey{SECRET_KEY_SUFFIX}"
+    message_type: ClassVar[Type] = SymmetricEncryptedMessage
 
-    SECKEY_FILE_EXT = ".enc"
-    DEFAULT_LOCATION = KeyFile.DEFAULT_PARENT_DIR / f"NaCl_seckey{SECKEY_FILE_EXT}"
-
-    def __init__(self, *args, **kwargs):
-        if self.suffix != self.SECKEY_FILE_EXT:
-            logger.debug("invalid file extension provided to SecretKeyFile")
-            raise InvalidFilenameErr(
-                f"secret key file name has to have extension {self.SECKEY_FILE_EXT} but receieved {self}"
+    @classmethod
+    def _validate(cls, path: Path):
+        if path.suffix is None:
+            logger.debug(f"invalid empty file extension provided to {cls.__name__}")
+            raise Exit(
+                f"secret key file can't have empty extension, extension required: {cls.SECRET_KEY_SUFFIX}"
+            )
+        if path.suffix != cls.SECRET_KEY_SUFFIX:
+            logger.debug(f"invalid file extension provided to {cls.__name__}")
+            raise Exit(
+                f"secret key filename has to have extension {cls.SECRET_KEY_SUFFIX}"
+                f"but receieved {path}"
             )
 
-    # this property is cached because it will be run again and again
-    # while checking if the password was correct,
-    # but the file contents wont change.
-    @cached_property
-    def encrypted_file_bytes(self):
-        if not self.exists():
-            logger.debug("tried to retrieve non existant SecretKeyFile")
-            click.echo(f"fatal: secret key does not exist in {self}!", err=True)
-            raise Exit()
+    @staticmethod
+    def __default_overwrite_mesg_func(path: Path) -> str:
+        return f"secret key file {path} EXISTS!, Overwrite?"
 
-        with open(self, "rb") as secret_key_filepath:
-            return PassEncryptedMessage.from_bytes(secret_key_filepath.read())
+    def write(self, data: SymmetricEncryptedMessage, **kwargs):
+        kwargs.setdefault("overwrite_mesg", self.__default_overwrite_mesg_func)
+        data_bytes = data.serialize()
+        logger.debug(f"writing encrypted secret key bytes to {self !r}")
+        super().write(data_bytes, **kwargs)
 
-    def write_encrypted(
-        self,
-        secret_key_bytes: PrivateKey,
-        master_passwd,
-        *,
-        should_confirm_overwrite=True,
-    ):
-        if self.exists() and should_confirm_overwrite:
-            self._confirm_overwrite(f"file {self} already EXISTS! Overwrite?")
-            self._save_backup()
+    def read(self) -> SymmetricEncryptedMessage:
+        logger.debug(f"reading encrypted secret key bytes from {self !r}")
+        read_bytes = self._fs_handler.read()
+        return self.message_type.deserialize(read_bytes)
 
-        # create a secret box with the password and use that to encrypt the secret key
-        secret_box = KeySecretBox(master_passwd)
-        encrypted_secret_key = secret_box.encrypt(secret_key_bytes.encode())
 
-        self.parent.mkdir(exist_ok=True)
-        with open(self, "wb") as secret_key_file:
-            secret_key_file.write(bytes(encrypted_secret_key))
+class PublicKeyFile(KeyFile):
+    PUBLIC_KEY_SUFFIX: ClassVar[str] = ".pub"
+    DEFAULT_LOCATION: ClassVar[Path] = (
+        KeyFile.DEFAULT_PARENT_DIR / f"NaCl_pubkey{PUBLIC_KEY_SUFFIX}"
+    )
+    message_type: ClassVar[Type] = PublicKey
 
-        # clear the cached encrypted bytes
-        if hasattr(self, "encrypted_file_bytes"):
-            del self.encrypted_file_bytes
-            logger.debug("cached encrypted secret keyfile bytes erased from memory")
+    @classmethod
+    def _validate(cls, path: Path):
+        if path.suffix is None:
+            logger.debug(
+                f"invalid empty file extension provided to {cls.__name__}, file: {path}"
+            )
+            raise Exit(
+                f"secret key file can't have empty extension, extension required: {cls.PUBLIC_KEY_SUFFIX}"
+            )
+        elif path.suffix != cls.PUBLIC_KEY_SUFFIX:
+            logger.debug(
+                f"invalid file extension provided to {cls.__name__}, file: {path}"
+            )
+            raise Exit(
+                f"public key file name has to have extension {cls.PUBLIC_KEY_SUFFIX},"
+                f"not {path.suffix}"
+            )
 
-        logger.info(f"secret key file written at {self}")
+    @staticmethod
+    def __default_overwrite_mesg(path) -> str:
+        return f"public key file {path} EXISTS!, Overwrite?"
 
-    def retrieve(self, master_passwd: str):
-        secret_box = KeySecretBox(master_passwd)
-        return PrivateKey(
-            secret_box.decrypt_message(self.encrypted_file_bytes, master_passwd)
+    def write(self, data: message_type, **kwargs):
+        kwargs.setdefault("overwrite_mesg", self.__default_overwrite_mesg)
+        logger.debug(f"writing public key bytes to {self !r}")
+        super().write(
+            bytes(data),
+            **kwargs,
         )
+
+    def read(self) -> bytes:
+        logger.debug(f"reading public key bytes from {self !r}")
+        return super().read()
 
 
 class PasswdFile(KeyFile):
-    """represents a file containing a password
-    which may or may not exist on disk yet
-    """
-
     PASSWD_FILE_EXT = ".enc"
-
-    def __init__(self, *args, **kwargs):
-        if self.suffix is None:
-            logger.debug("invalid empty file extension provided to PasswdFile")
-            raise InvalidFilenameErr(
-                f"passwd file can't have empty extension, extension required: {self.PASSWD_FILE_EXT}"
-            )
-        elif self.suffix != self.PASSWD_FILE_EXT:
-            logger.debug("invalid file extension provided to PasswdFile")
-            raise InvalidFilenameErr(
-                f"passwd has to have extension {self.PASSWD_FILE_EXT}, not {self.suffix}"
-            )
+    message_type: ClassVar[Type] = AssymetricEncryptedMessage
 
     @classmethod
-    def from_service_name(cls, service_name: str, passwd_store_path: Path):
-        """create a PassFile instance with filestem `service_name`
-        under the `passwd_store_path`
-
-        Args:
-            service_name (str): the service the password is for,
-              this will become the filestem of the passfile.
-
-            passwd_store_path (pathlib.Path): the passwd_store_path directory
-              under which the passfile is to be placed.
-
-        Raises:
-            EmptyError: raised when service name is empty
-        """
-        if len(service_name) == 0:
-            logger.debug("invalid empty service name provided to PasswdFile")
-            raise EmptyError("service name of password can't be empty!")
-
-        filesys_root = Path("").absolute().root
-        service_name: Path = sanitize_filepath(
-            Path(filesys_root, service_name), platform="auto"
-        )
-        service_name = service_name.with_suffix(cls.PASSWD_FILE_EXT).relative_to(
-            filesys_root
-        )
-        return cls(passwd_store_path / service_name)
+    def _validate(cls, path):
+        if path.suffix is None:
+            logger.debug(
+                f"invalid empty file extension provided to {cls.__name__}, file: {path}"
+            )
+            raise Exit(
+                f"passwd file can't have empty extension, extension required: {cls.PASSWD_FILE_EXT}"
+            )
+        elif path.suffix != cls.PASSWD_FILE_EXT:
+            logger.debug(
+                f"invalid file extension provided to {cls.__name__}, file: {path}"
+            )
+            raise Exit(
+                f"passwd has to have extension {cls.PASSWD_FILE_EXT}, not {path.suffix}"
+            )
 
     def alias(self, destination_path: Path):
-        if not self.exists():
-            logger.debug("tried to alias non existant PasswdFile")
-            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
+        if not self.path.exists():
+            logger.debug(f"tried to alias non existant {self !r}")
+            raise FileNotFoundError(f"passwd file doesn't exist at {self.path}")
         destination_path.parent.mkdir(exist_ok=True, parents=True)
-        destination_path.symlink_to(self, target_is_directory=False)
-        logger.info(f"{self} was symlinked to {destination_path}")
+        logger.info(f"symlinking {self.path} to {destination_path}")
+        destination_path.symlink_to(self.path, target_is_directory=False)
 
-    def retrieve_passwd(self, get_secret_key_callback: Callable[[], PrivateKey]) -> str:
-        """retrieve and decrypt the password contained in the keyfile
-
-        Args:
-            secret_key (PrivateKey): secret key used to decrypt the passwd file
-
-        Raises:
-            FileNotFoundError: raised if the passwd file doesn't exist on disk
-        """
-
-        if not self.exists():
-            logger.debug("tried to retrive non existant PasswdFile")
-            raise FileNotFoundError(f"passwd file doesn't exist at {self}")
-
-        secret_key = get_secret_key_callback()
-        with open(self, "rb") as f:
-            encrypted_passwd_bytes = f.read()
-        decrypted_passwd_bytes = SealedBox(secret_key).decrypt(encrypted_passwd_bytes)
-
-        return decrypted_passwd_bytes.decode("utf-8")
-
-    def write_passwd(
+    def remove(
         self,
-        passwd: str,
-        public_key: PublicKey,
-        *,
-        should_confirm_overwrite: bool = True,
+        should_confirm_delete: bool = True,
+        delete_confirm_mesg: Union[
+            Callable[[Path], str], str
+        ] = "Are you sure you want to remove password?",
     ):
-        """encrypt and write the passfile to disk
+        if not self.path.exists():
+            logging.debug(f"attempted to delete nonexistant passwd file {self !r}")
+            raise FileNotFoundError(f"{self !r} file not not found")
 
-        Args:
-            key (str): the key to enter into the keystore
+        if should_confirm_delete:
+            logging.debug(f"attempting delete of {self !r} from disk")
+            self.__confirm_delete(delete_confirm_mesg)
 
-            public_key (PublicKey):  the public key to be used to encrypt the key with
+        logger.info(f"removing file {self.path}")
+        self.path.unlink()
 
-        Raises:
-            PassFileExistsErr: raised when the passfile attempted to
-              be written to disk already exists.
-        """
-        if self.exists() and should_confirm_overwrite:
-            logger.debug(f"trying to write to an existing PasswdFile {self}")
-            prompt = f"the service name {self.stem} already EXISTS! in pass store, Overwrite?"
-            self._confirm_overwrite(prompt)
+    def __confirm_delete(self, delete_confirm_mesg: Union[Callable[[Path], str], str]):
+        if callable(delete_confirm_mesg):
+            delete_confirm_mesg = delete_confirm_mesg()
 
-        encrypted_passwd_bytes = SealedBox(public_key).encrypt(bytes(passwd, "utf-8"))
-        # make the parent directory in case of passwords which are organized. eg. 'alt/google'
-        self.parent.mkdir(parents=True, exist_ok=True)
-        with open(self, "wb") as f:
-            f.write(encrypted_passwd_bytes)
-        logger.info(f"password file written at {self}")
+        if not isinstance(delete_confirm_mesg, str):
+            raise TypeError(
+                "delete_confirm_mesg has to be either a str or a callable that returns a str."
+            )
+        try:
+            click.confirm(delete_confirm_mesg, abort=True)
+        except click.exceptions.Abort:
+            raise Exit("Remove Aborted", error_code=0, stderr=False)
+
+    @staticmethod
+    def __default_overwrite_mesg(path) -> str:
+        f"passwd file {path} Exists! Overwrite?"
+
+    def write(self, data: bytes, **kwargs):
+        kwargs.setdefault("overwrite_mesg", self.__default_overwrite_mesg)
+        logger.debug(f"writing encrypted passwd bytes to {self !r}")
+        super().write(data, **kwargs)
+
+    def read(self) -> AssymetricEncryptedMessage:
+        logger.debug(f"reading encrypted passwd bytes from {self !r}")
+        return PasswdFile.message_type(super().read())
