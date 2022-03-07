@@ -134,7 +134,7 @@ class TTYAskPasswd(PasswdPromptStrategy, metaclass=PsuedoFunc):
             else empty_message
         )
         while True:
-            if reply := getpass(prompt):
+            if (reply := getpass(prompt)) == "":
                 click.echo(empty_message)
             else:
                 return reply
