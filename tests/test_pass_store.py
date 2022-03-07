@@ -1,110 +1,135 @@
-import pytest
-from typing import Tuple
-from pass_store import PasswdStore
+from unittest.mock import ANY, patch
+
+from passwd_store import PasswdStore
 from utils.keyfiles import PasswdFile
-from dataclasses import dataclass
-import utils.exceptions as exceptions
 from pathlib import Path
+
+from tests.tools import random_chars
+import pytest
+from unittest.mock import Mock, call
+import utils.exceptions
 
 
 @pytest.fixture(scope="module")
-def pass_store(tmp_path_factory) -> PasswdStore:
-    pass_store_parent = tmp_path_factory.mktemp("test_pass_store")
-    pass_store = PasswdStore(pass_store_parent)
-    return pass_store
-
-
-passwd = "test_password"
-
-
-@dataclass
-class ServiceInfo:
-    service_name: str
-    passfile_path: Path
-
-
-service_name_pairs = [
-    ("test_service_name_0", "test_service_name_0"),
-    (
-        "outer_folder_1/test_inner_service_name_1",
-        "outer_folder_1/test_inner_service_name_1",
-    ),
-    ("outer_folder_2/../../test_inner_service_name_2", "test_inner_service_name_2"),
-    ("/../../test_inner_service_name_3", "test_inner_service_name_3"),
-]
-
-
-@pytest.fixture(autouse=True, params=service_name_pairs)
-def service_info(pass_store: "PasswdStore", request):
-    service_name, resolved_service_name = request.param
-    return ServiceInfo(
-        service_name,
-        (pass_store.passwd_store_path / resolved_service_name).with_suffix(
-            PasswdFile.PASSWD_FILE_EXT
-        ),
-    )
+def passwd_store(tmp_path_factory) -> PasswdStore:
+    passwd_file_parent = tmp_path_factory.mktemp("test_passwd_file")
+    passwd_file = PasswdStore(passwd_file_parent)
+    return passwd_file
 
 
 @pytest.fixture()
-def tmp_alias_paths(pass_store: "PasswdStore"):
-    target_service_names = (
-        "test_source_name",  # source
-        "not_there_test_dest_name",  # dest
-    )
-    target_paths = [
-        (pass_store.passwd_store_path / service_name).with_suffix(
-            PasswdFile.PASSWD_FILE_EXT
-        )
-        for service_name in target_service_names
-    ]
-    yield tuple(ServiceInfo(*pair) for pair in zip(target_service_names, target_paths))
-    for path in target_paths:
-        path.unlink(missing_ok=True)
+def passwd_file_mock():
+    passwd_file = Mock(spec=PasswdFile)
+    passwd_file.path = Mock(spec=Path)
+    yield passwd_file
 
 
-@pytest.mark.dependency(name="insert passwd")
+@patch("passwd_store.PasswdStore.assymetric_encryptor", autosepc=True)
+@patch("passwd_store.PasswdFileFactory.get_passwd_file", wraps=lambda x: x)
 def test_insert_passwd(
-    service_info: ServiceInfo, pass_store: "PasswdStore", public_key
+    passwd_file_factory_mock,
+    assymetric_encryptor_mock,
+    passwd_store: "PasswdStore",
+    passwd_file_mock,
+    public_key,
 ):
-    assert not service_info.passfile_path.exists()
-    pass_store.insert_passwd(service_info.service_name, passwd, public_key)
-    assert service_info.passfile_path.exists()
+    encryption_box_instance = assymetric_encryptor_mock.return_value
+    encryption_box_instance.encrypt.return_value = b"encrypted passwd bytes"
 
+    passwd = random_chars(15)
+    passwd_store.insert_passwd(
+        passwd_file_mock, passwd, public_key
+    )  # mocking passwd file by passing the service name as a mock itself,
+    # the factory will return back this instance
 
-@pytest.mark.dependency(depends=["insert passwd"])
-@pytest.mark.order(after="test_insert_passwd")
-def test_retrieve_passwd(
-    service_info: ServiceInfo, pass_store: "PasswdStore", secret_key
-):
-    get_secret_key_callback = lambda: secret_key
-    decrypted_pass = pass_store.retrieve_passwd(
-        service_info.service_name, get_secret_key_callback
+    passwd_file_factory_mock.assert_called_with(passwd_file_mock)
+    passwd_file_mock.write.assert_called_with(
+        encryption_box_instance.encrypt(),
+        overwrite_mesg=ANY,
+        should_backup=False,
+        should_confirm_overwrite=ANY,
     )
-    assert decrypted_pass == passwd
 
 
-def test_alias_nonexistant_service_name(
-    pass_store: "PasswdStore", tmp_alias_paths: Tuple[ServiceInfo, ServiceInfo]
+@patch("passwd_store.PasswdStore.assymetric_encryptor", autosepc=True)
+@patch(
+    "passwd_store.PasswdStore.passwd_file_factory_cls.get_passwd_file",
+    wraps=lambda x: x,
+)
+def test_retrieve_passwd(
+    passwd_file_factory_mock,
+    assymetric_encryptor_mock,
+    passwd_store: "PasswdStore",
+    secret_key,
 ):
-    source, dest = tmp_alias_paths
-    assert not source.passfile_path.exists()
-    assert not dest.passfile_path.exists()
-    with pytest.raises(exceptions.Exit):
-        pass_store.alias(
-            source.service_name, dest.service_name
-        )  # it should handle error message and exit
-    assert not dest.passfile_path.exists()
+    passwd_file_mock = Mock(spec=PasswdFile)
+    passwd_file_mock.read.return_value = b"read encrypted bytes"
+    encryptor_instance = assymetric_encryptor_mock.return_value
+    encryptor_instance.decrypt.return_value = b"decrypted bytes"
+
+    decrypted_pass = passwd_store.retrieve_passwd(passwd_file_mock, secret_key)
+
+    passwd_file_factory_mock.assert_called_with(passwd_file_mock)
+    assymetric_encryptor_mock.assert_called_with(secret_key)
+    encryptor_instance.decrypt.assert_called_with(passwd_file_mock.read())
+    assert decrypted_pass == encryptor_instance.decrypt().decode("utf-8")
 
 
+@patch(
+    "passwd_store.PasswdStore.passwd_file_factory_cls.get_passwd_file",
+    wraps=lambda x: x,
+)
+def test_remove_nonexistant_passwd(
+    passwd_file_factory_mock, passwd_store: "PasswdStore", passwd_file_mock
+):
+    passwd_file_mock.remove.side_effect = FileNotFoundError()
+    with pytest.raises(utils.exceptions.Exit):
+        passwd_store.remove_passwd(passwd_file_mock)
+    passwd_file_factory_mock.assert_called_with(passwd_file_mock)
+
+
+@patch(
+    "passwd_store.PasswdStore.passwd_file_factory_cls.get_passwd_file",
+    wraps=lambda x: x,
+)
+def test_remove_passwd(
+    passwd_file_factory_mock, passwd_store: "PasswdStore", passwd_file_mock
+):
+    passwd_store.remove_passwd(passwd_file_mock)
+    passwd_file_mock.remove.assert_called()
+
+
+alias_dest_mock = passwd_file_mock
+
+
+@patch(
+    "passwd_store.PasswdStore.passwd_file_factory_cls.get_passwd_file",
+    wraps=lambda x: x,
+)
+def test_alias_nonexistant(
+    passwd_file_factory_mock,
+    passwd_store: "PasswdStore",
+    passwd_file_mock,
+    alias_dest_mock,
+):
+    passwd_file_mock.alias.side_effect = FileNotFoundError()
+    with pytest.raises(utils.exceptions.Exit):
+        passwd_store.alias(passwd_file_mock, alias_dest_mock)
+    assert call(passwd_file_mock) in passwd_file_factory_mock.mock_calls
+    assert call(alias_dest_mock) in passwd_file_factory_mock.mock_calls
+
+
+@patch(
+    "passwd_store.PasswdStore.passwd_file_factory_cls.get_passwd_file",
+    wraps=lambda x: x,
+)
 def test_alias(
-    service_info: ServiceInfo,
-    tmp_alias_paths: Tuple[ServiceInfo, ServiceInfo],
-    pass_store: "PasswdStore",
+    passwd_file_factory_mock,
+    passwd_store: "PasswdStore",
+    passwd_file_mock,
+    alias_dest_mock,
 ):
-    _, dest = tmp_alias_paths
-    assert service_info.passfile_path.exists()
-    assert not dest.passfile_path.exists()
-    pass_store.alias(service_info.service_name, dest.service_name)
-    assert dest.passfile_path.exists()
-    assert dest.passfile_path.is_symlink()
-    assert dest.passfile_path.readlink() == service_info.passfile_path
+    passwd_store.alias(passwd_file_mock, alias_dest_mock)
+    passwd_file_mock.alias.assert_called_with(alias_dest_mock.path)
+    assert call(passwd_file_mock) in passwd_file_factory_mock.mock_calls
+    assert call(alias_dest_mock) in passwd_file_factory_mock.mock_calls
