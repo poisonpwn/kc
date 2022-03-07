@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Protocol, Optional, Type, Tuple
+from typing import Protocol, Optional, Tuple, NewType
 import pyargon2
+import nacl.exceptions
 from nacl.secret import SecretBox
 from nacl.public import (
     SealedBox,
@@ -10,6 +11,7 @@ from nacl.public import (
 )
 from nacl.utils import random as random_bytes
 from .serializible import SerializibleDataclass
+from .exceptions import DecryptionError
 
 
 class EncryptionBox(Protocol):
@@ -44,7 +46,7 @@ class Argon2KeyDeriver(KeyDeriver):
 @dataclass
 class SymmetricEncryptedMessage(SerializibleDataclass):
     mesg: bytes
-    salt: bytes
+    salt: str
 
 
 class SymmetricEncryptionBox:
@@ -53,7 +55,7 @@ class SymmetricEncryptionBox:
     key_size: int = SecretBox.KEY_SIZE
     salt_generator = random_bytes
 
-    def __init__(self, passwd: str, salt: Optional[bytes] = None):
+    def __init__(self, passwd: str, salt: Optional[str] = None):
         if salt is None:
             salt_size = SymmetricEncryptionBox.key_deriver.salt_size
             salt = SymmetricEncryptionBox.salt_generator(salt_size).hex()
@@ -71,7 +73,10 @@ class SymmetricEncryptionBox:
         return SymmetricEncryptedMessage(self.encryptor.encrypt(message), self.salt)
 
     def decrypt(self, message: bytes) -> bytes:
-        return self.encryptor.decrypt(message)
+        try:
+            return self.encryptor.decrypt(message)
+        except nacl.exceptions.CryptoError as e:
+            raise DecryptionError(*e.args)
 
     @classmethod
     def decrypt_message(
@@ -81,9 +86,10 @@ class SymmetricEncryptionBox:
         return encryptor.decrypt(encrypted_message.mesg)
 
 
-AssymetricEncryptionBox: EncryptionBox = SealedBox
-PublicKey: Type = NaclPublicKey
-SecretKey: Type = NaclPrivateKey
+AssymetricEncryptionBox = SealedBox
+PublicKey = NaclPublicKey
+SecretKey = NaclPrivateKey
+AssymetricEncryptedMessage = NewType("AssymetricEncryptedMessage", bytes)
 
 
 def generate_keypair() -> Tuple[SecretKey, PublicKey]:
