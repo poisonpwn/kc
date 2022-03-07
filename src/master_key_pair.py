@@ -1,14 +1,15 @@
 import logging
-from typing import Optional, Callable, Union
+from typing import Callable, Optional, Union
 
 import click
-from nacl.exceptions import CryptoError
-from nacl.public import PrivateKey
 from pynentry import PynEntry
 
-from utils.exceptions import EmptyError, Exit
 from utils.keyfiles import PublicKeyFile, SecretKeyFile
+from utils.crypto import SymmetricEncryptionBox, PublicKey, SecretKey
+from utils.crypto import generate_keypair as nacl_generate_keypair
+from utils.exceptions import Exit, DecryptionError
 from utils.user_prompt import AskPasswd
+
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +19,14 @@ class MasterKeyPair:
     MASTER_PASSWD_PROMPT = "Enter master password: "
     NEW_MASTER_PASSWD_PROMPT = "Enter new master password: "
     PASSWD_CHANGED_MESG = "Password Changed"
+    symmetric_encryptor = SymmetricEncryptionBox
+    secret_key_cls = SecretKey
+    public_key_cls = PublicKey
+    keypair_generator = nacl_generate_keypair
 
-    def __init__(
-        self,
-        secret_keyfile: SecretKeyFile,
-        public_keyfile: PublicKeyFile,
-    ):
-        self.secret_keyfile = secret_keyfile
-        self.public_keyfile = public_keyfile
+    def __init__(self, secret_key_path: SecretKeyFile, public_key_path: PublicKeyFile):
+        self.public_key_file = public_key_path
+        self.secret_key_file = secret_key_path
 
     def generate_keypair(self, master_passwd: Union[str, Callable[..., str]], **kwargs):
         """generates an NaCl keypair and writes to disk at self.keypair_dir location
@@ -33,6 +34,10 @@ class MasterKeyPair:
         **kwargs are same as `SecretKeyFile.write_encrypted` or `PrivateKeyFile.write` in
         utils.keyfiles
         """
+
+        if master_passwd == "":
+            logger.debug("empty master password tried")
+            raise Exit("fatal: master password can't be empty!")
 
         if callable(master_passwd):
             master_passwd = master_passwd()
@@ -42,18 +47,18 @@ class MasterKeyPair:
                 "master_passwd must be a str or a callable that returns a str"
             )
 
-        if master_passwd == "":
-            logger.debug("empty master password tried")
-            raise EmptyError("master password can't be empty!")
-
-        secret_key = PrivateKey.generate()
-        public_key = secret_key.public_key
-        if self.secret_keyfile.exists() or self.public_keyfile.exists():
+        if self.secret_key_file.path.exists() or self.public_key_file.path.exists():
             logger.warn(
                 "KEYFILE EXISTS!, if keyfiles all the password in current pass store will be INVALIDATED!"
             )
-        self.secret_keyfile.write_encrypted(secret_key, master_passwd, **kwargs)
-        self.public_keyfile.write(public_key, **kwargs)
+
+        secret_key, public_key = MasterKeyPair.keypair_generator()
+
+        encryption_box = MasterKeyPair.symmetric_encryptor(master_passwd)
+        encrypted_secret_key = encryption_box.encrypt(bytes(secret_key))
+
+        self.secret_key_file.write(encrypted_secret_key, **kwargs)
+        self.public_key_file.write(public_key, **kwargs)
 
     def get_secret_key(self, master_passwd: Optional[str] = None):
         """
@@ -65,22 +70,32 @@ class MasterKeyPair:
 
         if master_passwd is not None:
             try:
-                return self.secret_keyfile.retrieve(master_passwd)
-            except CryptoError as e:
+                return self._try_decrypt_secret_key(master_passwd)
+            except DecryptionError as e:
                 logger.debug("decryption failed!", exc_info=e)
-                click.echo(self.DECRYPTION_FAILED_MESG, err=True)
-                raise Exit(1)
+                raise Exit(self.DECRYPTION_FAILED_MESG)
 
         # this returns the secret key bytes if the user provides the right password
         # else it will abort
         return AskPasswd.until(
             self.MASTER_PASSWD_PROMPT,
-            self.__check_if_right_passwd,  # will return bytes if successful
+            self._check_if_right_passwd,  # will return bytes if successful
             self.__ran_out_of_attempts,
         )
 
+    def _try_decrypt_secret_key(self, passwd: str):
+        """tries to decrypt the password otherwise CryptoError is raised"""
+        try:
+            encrypted_mesg = self.secret_key_file.read()
+        except FileNotFoundError:
+            raise Exit("fatal: secret key file not found")
+        decrypted_bytes = MasterKeyPair.symmetric_encryptor.decrypt_message(
+            passwd, encrypted_mesg
+        )
+        return MasterKeyPair.secret_key_cls(decrypted_bytes)
+
     # executes this callback while there are attempts left
-    def __check_if_right_passwd(
+    def _check_if_right_passwd(
         self,
         inputted_passwd: str,
         attempts_left: int,  # not including current attempt
@@ -91,8 +106,8 @@ class MasterKeyPair:
         """
         try:
             # if successful return the master secret key bytes out of all enclosing functions
-            service_passwd = self.secret_keyfile.retrieve(inputted_passwd)
-        except CryptoError:
+            secret_key = self._try_decrypt_secret_key(inputted_passwd)
+        except DecryptionError:
             # user entered wrong password and decryption failed,
             if attempts_left != 0:
                 # current was not the last attempt, there are still attempts left.
@@ -113,13 +128,12 @@ class MasterKeyPair:
             return False
         else:
             logger.debug("password decrypt successful")
-        return service_passwd
+        return secret_key
 
     # execute this callback when attemtps are exhausted
     def __ran_out_of_attempts(self):
-        click.echo(self.DECRYPTION_FAILED_MESG, err=True)
         logger.debug("decryption failed!, user ran out of attempts")
-        raise Exit(1)
+        raise Exit(self.DECRYPTION_FAILED_MESG)
 
     def change_master_password(
         self, new_passwd: Optional[str] = None, old_passwd: Optional[str] = None
@@ -133,16 +147,22 @@ class MasterKeyPair:
 
         assert new_passwd != ""
 
-        plaintext_secret_key = self.get_secret_key(old_passwd)
+        secret_key = self.get_secret_key(old_passwd)
         if new_passwd is None:
             new_passwd = AskPasswd.and_confirm(self.NEW_MASTER_PASSWD_PROMPT)
 
-        self.secret_keyfile.write_encrypted(
-            plaintext_secret_key,
-            new_passwd,
+        symmetric_encryptor = self.symmetric_encryptor(new_passwd)
+        encrypted_secret_key = symmetric_encryptor.encrypt(bytes(secret_key))
+
+        self.secret_key_file.write(
+            encrypted_secret_key,
             should_confirm_overwrite=False,
         )
         logger.info("password changed")
 
     def get_public_key(self):
-        return self.public_keyfile.retrieve()
+        try:
+            public_key_bytes = self.public_key_file.read()
+        except FileNotFoundError:
+            raise Exit("fatal: public key file not found")
+        return MasterKeyPair.public_key_cls(public_key_bytes)
