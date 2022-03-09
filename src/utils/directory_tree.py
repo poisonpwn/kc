@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Callable, Optional
+from typing import List, Callable, Optional, ClassVar
 from os.path import relpath
 
 
 class Node(ABC):
-    tee = "├── "
-    elbow = "└── "
-    space = "    "
-    pipe = "│   "
+    tee: ClassVar[str] = "├── "
+    elbow: ClassVar[str] = "└── "
+    space: ClassVar[str] = "    "
+    pipe: ClassVar[str] = "│   "
 
     @abstractmethod
     def compute_str(self, prefix, is_last):
@@ -19,8 +19,8 @@ class Node(ABC):
 @dataclass
 class File(Node):
     path: Path
-    arrow = " -> "
-    ellipses = " ..."
+    arrow: ClassVar[str] = " -> "
+    ellipses: ClassVar[str] = " ..."
 
     @classmethod
     def show_ellipses(cls, prefix) -> str:

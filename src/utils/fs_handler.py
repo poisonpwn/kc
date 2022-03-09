@@ -19,7 +19,7 @@ class FsHandler:
         self.path = path
 
     @cached_property
-    def file_bytes(self):
+    def _file_bytes(self):
         logger.debug(f"read bytes from {self.path}")
         try:
             return self.path.read_bytes()
@@ -65,9 +65,9 @@ class FsHandler:
         self.path.write_bytes(mesg)
         logger.debug(f"message written to file {self.path}")
 
-        if "file_bytes" in self.__dict__:
+        if "_file_bytes" in self.__dict__:
             logger.debug(f"erasing cached bytes of file {self.path}")
-            del self.file_bytes
+            del self._file_bytes
 
     def _confirm_overwrite(
         self, confirm_mesg: Optional[Union[str, Callable[[Path], str]]] = None
@@ -98,4 +98,4 @@ class FsHandler:
         """reads the bytes of file
         raises:
            FileNotFoundError: raised when file was not found on the disk"""
-        return self.file_bytes
+        return self._file_bytes

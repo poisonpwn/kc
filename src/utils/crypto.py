@@ -82,6 +82,8 @@ class SymmetricEncryptionBox:
     def decrypt_message(
         cls, passwd: str, encrypted_message: SymmetricEncryptedMessage
     ) -> bytes:
+        """decrypt the message using the box constructed with the key derived
+        from the given password"""
         encryptor = cls(passwd, encrypted_message.salt)
         return encryptor.decrypt(encrypted_message.mesg)
 
@@ -93,6 +95,7 @@ AssymetricEncryptedMessage = NewType("AssymetricEncryptedMessage", bytes)
 
 
 def generate_keypair() -> Tuple[SecretKey, PublicKey]:
+    """generate a brand new keypair"""
     nacl_private_key = NaclPrivateKey.generate()
     nacl_public_key = nacl_private_key.public_key
 

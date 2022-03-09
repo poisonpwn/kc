@@ -61,12 +61,14 @@ class SecretKeyFile(KeyFile):
         return f"secret key file {path} EXISTS!, Overwrite?"
 
     def write(self, data: SymmetricEncryptedMessage, **kwargs):
+        """serialize the data and write it to disk"""
         kwargs.setdefault("overwrite_mesg", self.__default_overwrite_mesg_func)
         data_bytes = data.serialize()
         logger.debug(f"writing encrypted secret key bytes to {self !r}")
         super().write(data_bytes, **kwargs)
 
     def read(self) -> SymmetricEncryptedMessage:
+        """deserialize data from disk into a symmetric encrypted message"""
         logger.debug(f"reading encrypted secret key bytes from {self !r}")
         read_bytes = self._fs_handler.read()
         return self.message_type.deserialize(read_bytes)
@@ -101,7 +103,8 @@ class PublicKeyFile(KeyFile):
     def __default_overwrite_mesg(path) -> str:
         return f"public key file {path} EXISTS!, Overwrite?"
 
-    def write(self, data: message_type, **kwargs):
+    def write(self, data: PublicKey, **kwargs):
+        """writ public key bytes to disk"""
         kwargs.setdefault("overwrite_mesg", self.__default_overwrite_mesg)
         logger.debug(f"writing public key bytes to {self !r}")
         super().write(
@@ -110,6 +113,7 @@ class PublicKeyFile(KeyFile):
         )
 
     def read(self) -> bytes:
+        """read public key bytes from disk"""
         logger.debug(f"reading public key bytes from {self !r}")
         return super().read()
 
@@ -136,6 +140,8 @@ class PasswdFile(KeyFile):
             )
 
     def alias(self, destination_path: Path):
+        """create a symlink of password file at destination_path,
+        raises error if source of symlink is not found"""
         if not self.path.exists():
             logger.debug(f"tried to alias non existant {self !r}")
             raise FileNotFoundError(f"passwd file doesn't exist at {self.path}")
@@ -150,6 +156,7 @@ class PasswdFile(KeyFile):
             Callable[[Path], str], str
         ] = "Are you sure you want to remove password?",
     ):
+        """remove password file from disk"""
         if not self.path.exists():
             logging.debug(f"attempted to delete nonexistant passwd file {self !r}")
             raise FileNotFoundError(f"{self !r} file not not found")
