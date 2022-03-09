@@ -193,7 +193,10 @@ class PasswdStore:
 
         dir_tree = DirectoryTree(self.passwd_store_path, tree_filter_predicate)
         if dir_tree.is_empty:
-            click.echo(f"no keys in {self.passwd_store_path.absolute()}")
-            return
+            raise Exit(
+                f"no keys in {self.passwd_store_path.absolute()}",
+                error_code=0,
+                stderr=False,
+            )
 
         click.echo(dir_tree.compute_str())
